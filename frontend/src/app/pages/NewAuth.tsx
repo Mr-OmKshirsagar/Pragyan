@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GlassButton } from '../components/GlassButton';
 import { GlassCard } from '../components/GlassCard';
 import { GlassInput } from '../components/GlassInput';
 import { Icons } from '../components/Icons';
+import { apiFetch } from '../../services/api';
+import { toast } from 'sonner';
 
 interface NewAuthProps {
   mode: 'login' | 'register';
@@ -10,36 +12,109 @@ interface NewAuthProps {
   onRegister: (name: string, email: string) => void;
   onToggleMode: () => void;
   onBack: () => void;
+  onLogoClick?: () => void;
 }
 
-export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack }: NewAuthProps) {
+export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack, onLogoClick }: NewAuthProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Load saved email on mount
+  useEffect(() => {
     if (mode === 'login') {
-      onLogin(email);
+      const savedEmail = localStorage.getItem('rememberedEmail');
+      if (savedEmail) {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    }
+  }, [mode]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError('');
+
+    if (mode === 'register' && name.trim().length < 2) {
+      setSubmitError('Full name must be at least 2 characters');
+      return;
+    }
+
+    if (password.length < 6) {
+      setSubmitError('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    if (mode === 'login') {
+      try {
+        const data = await apiFetch<any>('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+
+        localStorage.setItem('accessToken', data.data.accessToken);
+        localStorage.setItem('refreshToken', data.data.refreshToken);
+        localStorage.setItem('userEmail', data.data.user.email);
+        localStorage.setItem('userRole', data.data.user.role || 'USER');
+
+        // Save email if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('rememberedEmail', email);
+        } else {
+          localStorage.removeItem('rememberedEmail');
+        }
+
+        toast.success(`Welcome back, ${data.data.user.fullName || email.split('@')[0]}!`);
+        onLogin(data.data.user.fullName || email);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Login failed. Check your credentials.';
+        setSubmitError(msg);
+        toast.error(msg);
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
-      onRegister(name, email);
+      try {
+        const data = await apiFetch<any>('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ fullName: name, email, password }),
+        });
+
+        localStorage.setItem('accessToken', data.data.accessToken);
+        localStorage.setItem('refreshToken', data.data.refreshToken);
+        localStorage.setItem('userEmail', data.data.user.email);
+        localStorage.setItem('userRole', data.data.user.role || 'USER');
+
+        toast.success('Account created! Welcome to Pragyan 🎉');
+        onRegister(data.data.user.fullName || name, email);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Registration failed. Try again.';
+        setSubmitError(msg);
+        toast.error(msg);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <button
-          onClick={onBack}
-          className="mb-6 text-gray-400 hover:text-white transition-colors flex items-center gap-2"
+        <div
+          onClick={onLogoClick}
+          className="text-center mb-8 cursor-pointer group"
         >
-          ← Back
-        </button>
-
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
             <Icons.Brain />
           </div>
+          <h2 className="text-lg font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors mb-4">
+            ✨ Pragyan
+          </h2>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent mb-2">
             {mode === 'login' ? 'Welcome Back' : 'Get Started'}
           </h1>
@@ -52,6 +127,12 @@ export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack }: New
 
         <GlassCard strong className="p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {submitError && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {submitError}
+              </div>
+            )}
+
             {mode === 'register' && (
               <GlassInput
                 label="Full Name"
@@ -79,7 +160,7 @@ export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack }: New
             <GlassInput
               label="Password"
               type="password"
-              placeholder="••••••••"
+              placeholder="Minimum 6 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               icon={
@@ -93,7 +174,12 @@ export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack }: New
             {mode === 'login' && (
               <div className="flex items-center justify-between text-sm">
                 <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
-                  <input type="checkbox" className="rounded" />
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
                   Remember me
                 </label>
                 <a href="#" className="text-indigo-400 hover:text-indigo-300 transition-colors">
@@ -102,8 +188,15 @@ export function NewAuth({ mode, onLogin, onRegister, onToggleMode, onBack }: New
               </div>
             )}
 
-            <GlassButton type="submit" variant="primary" className="w-full" size="lg">
-              {mode === 'login' ? 'Sign In' : 'Create Account'}
+            <GlassButton type="submit" variant="primary" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+                </span>
+              ) : (
+                mode === 'login' ? 'Sign In' : 'Create Account'
+              )}
             </GlassButton>
           </form>
 

@@ -40,17 +40,6 @@ export function CareerDashboard({ careerId, onBack }: CareerDashboardProps) {
     { stage: 'Professional', title: 'Get Hired', status: 'locked', tasks: ['Interview Prep', 'Resume Building', 'Apply to Jobs'] }
   ];
 
-  const dayInLife = [
-    '9:00 AM - Team standup meeting',
-    '9:30 AM - Code review and feedback',
-    '10:30 AM - Feature development',
-    '12:00 PM - Lunch break',
-    '1:00 PM - Debugging and testing',
-    '3:00 PM - Collaboration with designers',
-    '4:30 PM - Learning new technologies',
-    '5:30 PM - Wrap up and planning'
-  ];
-
   const requiredSkills = [
     'JavaScript', 'React', 'Node.js', 'Git', 'Problem Solving',
     'Data Structures', 'Algorithms', 'REST APIs', 'Database', 'Testing'
@@ -238,20 +227,7 @@ export function CareerDashboard({ careerId, onBack }: CareerDashboardProps) {
               </div>
             </GlassCard>
 
-            <GlassCard strong className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">📅</span>
-                <h2 className="text-2xl font-bold text-white">A Day in the Life</h2>
-              </div>
-              <div className="space-y-3">
-                {dayInLife.map((item, i) => (
-                  <div key={i} className="flex items-start gap-3 glass rounded-xl p-3">
-                    <div className="w-2 h-2 bg-indigo-500 rounded-full mt-2"></div>
-                    <span className="text-gray-300">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
+
           </div>
 
           <div className="space-y-6">

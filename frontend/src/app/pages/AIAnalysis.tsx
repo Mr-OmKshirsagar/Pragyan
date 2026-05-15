@@ -35,10 +35,10 @@ export function AIAnalysis({ onComplete }: AIAnalysisProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl text-center">
-        <GlassCard strong className="p-12">
+      <div className="w-full max-w-lg text-center">
+        <GlassCard strong className="p-8">
           <div className="mb-8">
-            <div className="relative w-32 h-32 mx-auto mb-8">
+            <div className="relative w-24 h-24 mx-auto mb-6">
               <div className="absolute inset-0 gradient-primary rounded-full animate-ping opacity-20"></div>
               <div className="absolute inset-0 gradient-primary rounded-full animate-pulse"></div>
               <div className="relative w-full h-full gradient-primary rounded-full flex items-center justify-center text-5xl">

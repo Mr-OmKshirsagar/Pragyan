@@ -1,0 +1,144 @@
+import { prisma } from '@/lib/prisma';
+
+export type JobFeedItem = {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  description: string;
+  salary: string | null;
+  skills: string[];
+  applyLink: string;
+  source: string;
+  createdAt: Date;
+  matchScore: number;
+  applied: boolean;
+  appliedAt?: Date | null;
+};
+
+export type JobFeed = {
+  recentJobs: JobFeedItem[];
+  recommendedJobs: JobFeedItem[];
+  appliedJobs: JobFeedItem[];
+};
+
+export function calculateJobMatch(userSkills: string[], jobSkills: string[]): number {
+  const normalizedUserSkills = new Set(
+    userSkills.map((skill) => skill.toLowerCase().trim()).filter(Boolean)
+  );
+
+  const normalizedJobSkills = Array.from(
+    new Set(jobSkills.map((skill) => skill.toLowerCase().trim()).filter(Boolean))
+  );
+
+  if (!normalizedJobSkills.length) {
+    return 0;
+  }
+
+  const matchedSkills = normalizedJobSkills.filter((skill) => normalizedUserSkills.has(skill));
+  return Math.round((matchedSkills.length / normalizedJobSkills.length) * 100);
+}
+
+function toJobFeedItem(
+  job: {
+    id: string;
+    title: string;
+    company: string;
+    location: string;
+    description: string;
+    salary: string | null;
+    skills: string[];
+    applyLink: string;
+    source: string;
+    createdAt: Date;
+  },
+  userSkills: string[],
+  appliedJobs: Map<string, Date>
+): JobFeedItem {
+  const appliedAt = appliedJobs.get(job.id);
+
+  return {
+    ...job,
+    matchScore: calculateJobMatch(userSkills, Array.isArray(job.skills) ? job.skills : []),
+    applied: Boolean(appliedAt),
+    appliedAt,
+  };
+}
+
+export async function getJobFeedForUser(userId: string): Promise<JobFeed> {
+  const [user, jobs, applications] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { skills: true },
+    }),
+    prisma.job.findMany({
+      where: { source: 'JSearch' },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      select: {
+        jobId: true,
+        appliedAt: true,
+      },
+    }),
+  ]);
+
+  const userSkills = Array.isArray(user?.skills) ? user.skills : [];
+  const appliedMap = new Map(applications.map((item) => [item.jobId, item.appliedAt] as const));
+  const decoratedJobs = jobs.map((job) => toJobFeedItem(job, userSkills, appliedMap));
+
+  return {
+    recentJobs: [...decoratedJobs].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()).slice(0, 6),
+    recommendedJobs: [...decoratedJobs].sort((left, right) => right.matchScore - left.matchScore).slice(0, 6),
+    appliedJobs: decoratedJobs
+      .filter((job) => job.applied)
+      .sort((left, right) => {
+        const leftTime = left.appliedAt ? left.appliedAt.getTime() : 0;
+        const rightTime = right.appliedAt ? right.appliedAt.getTime() : 0;
+        return rightTime - leftTime;
+      }),
+  };
+}
+
+export async function markJobApplied(userId: string, jobId: string): Promise<JobFeedItem> {
+  const [job, userSkills] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id: jobId },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { skills: true },
+    }),
+  ]);
+
+  if (!job) {
+    throw new Error('Job not found');
+  }
+
+  await prisma.jobApplication.upsert({
+    where: {
+      userId_jobId: {
+        userId,
+        jobId,
+      },
+    },
+    update: {
+      status: 'APPLIED',
+      appliedAt: new Date(),
+    },
+    create: {
+      userId,
+      jobId,
+      status: 'APPLIED',
+    },
+  });
+
+  return {
+    ...job,
+    matchScore: calculateJobMatch(Array.isArray(userSkills?.skills) ? userSkills.skills : [], Array.isArray(job.skills) ? job.skills : []),
+    applied: true,
+    appliedAt: new Date(),
+  };
+}
+
