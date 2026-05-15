@@ -1,0 +1,52 @@
+// src/config/env.ts
+
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const requiredEnvVars = [
+  'PORT',
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'JWT_REFRESH_SECRET',
+  'RAPID_API_KEY',
+];
+
+requiredEnvVars.forEach((envVar) => {
+  if (!process.env[envVar]) {
+    console.warn(`Warning: ${envVar} is not set in environment variables`);
+  }
+});
+
+export const config = {
+  port: parseInt(process.env.PORT || '5000', 10),
+  nodeEnv: process.env.NODE_ENV || 'development',
+  apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5000',
+  
+  database: {
+    url: process.env.DATABASE_URL,
+  },
+  
+  jwt: {
+    secret: process.env.JWT_SECRET || 'your_jwt_secret_key',
+    expiry: process.env.JWT_EXPIRY || '7d',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'your_jwt_refresh_secret_key',
+    refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '30d',
+  },
+  
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    allowedOrigins: (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  },
+  
+  bcrypt: {
+    rounds: parseInt(process.env.BCRYPT_ROUNDS || '10', 10),
+  },
+
+  rapidApi: {
+    key: process.env.RAPID_API_KEY,
+  },
+};

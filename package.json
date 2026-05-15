@@ -1,0 +1,24 @@
+{
+  "name": "pragyan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abhishekpathak17052005/Pragyan.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/abhishekpathak17052005/Pragyan/issues"
+  },
+  "homepage": "https://github.com/abhishekpathak17052005/Pragyan#readme",
+  "devDependencies": {
+    "@postman/postman-mcp-server": "^2.8.9"
+  }
+}

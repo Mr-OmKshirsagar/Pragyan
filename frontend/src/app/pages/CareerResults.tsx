@@ -33,6 +33,13 @@ export function CareerResults({ userName, onLogout, onBack, onNavigate }: Career
       description: 'Lead product development from conception to launch.',
       why: 'Your communication skills and strategic thinking complement your technical knowledge. You understand both user needs and technical feasibility.',
       skills: ['Product Strategy', 'Communication', 'Analytics', 'User Research', 'Agile']
+    },
+    {
+      title: 'AI/ML Engineer',
+      match: 85,
+      description: 'Build intelligent systems and machine learning models that power modern applications.',
+      why: 'Your combined expertise in software engineering and data analysis makes you ideally suited for AI/ML engineering. You demonstrated strong capabilities in both implementation and algorithmic design.',
+      skills: ['Python', 'TensorFlow', 'Machine Learning', 'Neural Networks', 'Data Engineering']
     }
   ];
 

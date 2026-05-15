@@ -1,590 +1,748 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { apiFetch } from '../../services/api';
+import { applyForJob, fetchJobs, type JobFeedItem } from '../../services/jobservices';
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import { GlassCard } from '../components/GlassCard';
-import { GlassButton } from '../components/GlassButton';
-import { AnimatedProgress } from '../components/AnimatedProgress';
-import { Icons } from '../components/Icons';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../components/ui/chart';
+  generateRecommendations,
+  type SkillRecommendation,
+} from '../../services/recommendations';
 
-type AssessmentAnswers = Record<string, any>;
+interface Job extends JobFeedItem {
+}
 
-const marketPulseData = [
-  { month: 'Jan', demand: 58, salary: 52 },
-  { month: 'Feb', demand: 61, salary: 54 },
-  { month: 'Mar', demand: 66, salary: 57 },
-  { month: 'Apr', demand: 71, salary: 61 },
-  { month: 'May', demand: 75, salary: 64 },
-  { month: 'Jun', demand: 79, salary: 68 },
-  { month: 'Jul', demand: 83, salary: 72 },
-];
+interface TopCareer {
+  name: string;
+  score: number;
+  subtitle: string;
+  tag: string;
+}
 
-const trendingCareers = [
-  {
-    name: 'AI Product Analyst',
-    demand: 96,
-    growth: '+28%',
-    salary: '₹14-24 LPA',
-    tag: 'Hot in Bengaluru',
-  },
-  {
-    name: 'Full Stack Engineer',
-    demand: 91,
-    growth: '+21%',
-    salary: '₹12-22 LPA',
-    tag: 'Startup favorite',
-  },
-  {
-    name: 'Data Scientist',
-    demand: 88,
-    growth: '+19%',
-    salary: '₹16-30 LPA',
-    tag: 'High signal',
-  },
-  {
-    name: 'Growth Marketer',
-    demand: 84,
-    growth: '+16%',
-    salary: '₹10-18 LPA',
-    tag: 'Scaling fast',
-  },
-];
-
-const fastestGrowingSectors = [
-  { sector: 'AI & Automation', growth: 92, openings: '14.8k roles' },
-  { sector: 'FinTech', growth: 84, openings: '11.2k roles' },
-  { sector: 'SaaS', growth: 79, openings: '9.6k roles' },
-  { sector: 'Healthcare Tech', growth: 73, openings: '8.1k roles' },
-];
-
-const mostDemandedSkills = [
-  { skill: 'JavaScript / TypeScript', demand: 96, trend: '+11%' },
-  { skill: 'AI Prompting & LLMs', demand: 91, trend: '+18%' },
-  { skill: 'Data Analysis', demand: 88, trend: '+9%' },
-  { skill: 'Cloud / AWS', demand: 84, trend: '+13%' },
-];
-
-const hiringAlerts = [
-  {
-    company: 'CRED',
-    role: 'Associate Product Analyst',
-    note: 'Remote-first, India-wide applications open now.',
-  },
-  {
-    company: 'Zoho',
-    role: 'Full Stack Developer',
-    note: 'Hiring across Chennai, Coimbatore, and remote cohorts.',
-  },
-  {
-    company: 'Navi',
-    role: 'Data Analyst',
-    note: 'Fast-track interviews for candidates with SQL and dashboards.',
-  },
-];
-
-const chartConfig = {
-  demand: {
-    label: 'Hiring demand',
-    color: 'hsl(234 89% 66%)',
-  },
-  salary: {
-    label: 'Salary growth',
-    color: 'hsl(186 90% 56%)',
-  },
-};
+interface UserInsights {
+  xp: number;
+  streak: number;
+}
 
 interface DashboardProps {
-  userName: string;
-  assessmentAnswers?: AssessmentAnswers;
-  onViewMatches: () => void;
-  onViewProfile: () => void;
-  onRetakeAssessment: () => void;
+  userName?: string;
+  assessmentAnswers?: Record<string, any>;
+  onOpenAdmin?: () => void;
+  onViewMatches?: () => void;
+  onViewProfile?: () => void;
+  onRetakeAssessment?: () => void;
+  onViewRoadmaps?: () => void;
+  onViewCatalog?: () => void;
+  onViewMegaCatalog?: () => void;
+  onLogout?: () => void;
 }
 
-function buildMarketSuggestions(userName: string, assessmentAnswers?: AssessmentAnswers) {
-  const answersText = Object.values(assessmentAnswers || {})
-    .map((answer) => {
-      if (typeof answer === 'string') {
-        return answer;
-      }
-
-      if (answer && typeof answer === 'object') {
-        return [answer.question, answer.answer, answer.type].filter(Boolean).join(' ');
-      }
-
-      return '';
-    })
-    .join(' ')
-    .toLowerCase();
-
-  const profileText = `${userName} ${answersText}`;
-  const suggestions = [];
-
-  if (/data|analytics|statistics|sql|dashboard/.test(profileText)) {
-    suggestions.push({
-      title: 'Lean into data-heavy roles',
-      body: 'You are a strong fit for analytics, product insights, and BI workflows. Add SQL, dashboarding, and experimentation projects to your profile.',
-    });
-  }
-
-  if (/tech|coding|developer|javascript|react|ai|machine learning/.test(profileText)) {
-    suggestions.push({
-      title: 'Target AI-enabled product teams',
-      body: 'Your profile aligns with startup roles blending product thinking and engineering. Focus on TypeScript, APIs, and LLM tooling.',
-    });
-  }
-
-  if (/creative|design|ui|ux|brand|content/.test(profileText)) {
-    suggestions.push({
-      title: 'Track design-led growth markets',
-      body: 'Creative roles are hiring faster in product design, motion systems, and brand storytelling. Build a portfolio with measurable outcomes.',
-    });
-  }
-
-  if (/business|strategy|marketing|sales|operations/.test(profileText)) {
-    suggestions.push({
-      title: 'Watch operations and growth roles',
-      body: 'Business-facing teams are prioritizing analysts who can move between strategy, funnel metrics, and go-to-market execution.',
-    });
-  }
-
-  if (!suggestions.length) {
-    suggestions.push(
-      {
-        title: 'Keep a balanced job radar',
-        body: 'Your profile is still broad enough to explore tech, product, and analytics tracks. Watch startup hiring patterns and choose one track to deepen.',
-      },
-      {
-        title: 'Strengthen a marketable skill loop',
-        body: 'Pair one core skill with one execution skill, such as TypeScript plus analytics or design plus research, to stand out faster.',
-      }
-    );
-  }
-
-  return suggestions.slice(0, 3);
-}
-
-export function Dashboard({
-  userName,
-  assessmentAnswers,
+export default function Dashboard({
+  userName = 'Learner',
+  onOpenAdmin,
   onViewMatches,
   onViewProfile,
   onRetakeAssessment,
+  onViewRoadmaps,
+  onViewCatalog,
+  onViewMegaCatalog,
+  onLogout,
 }: DashboardProps) {
-  const [livePulse, setLivePulse] = useState(82);
-  const [activeAlertIndex, setActiveAlertIndex] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [topCareer, setTopCareer] = useState<TopCareer | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
+  const [userInsights, setUserInsights] = useState<UserInsights>({ xp: 0, streak: 0 });
+  const [skillRecs, setSkillRecs] = useState<SkillRecommendation[]>([]);
+  const [xpAnimated, setXpAnimated] = useState(0);
+
+  const fetchRecommendations = async () => {
+    setRecommendationsLoading(true);
+
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        setTopCareer(null);
+        setSkillRecs([]);
+        setJobs([]);
+        return;
+      }
+
+      const bundle = await generateRecommendations();
+
+      if (bundle?.topCareer) {
+        setTopCareer({
+          name: bundle.topCareer.career,
+          score: bundle.topCareer.match,
+          subtitle: bundle.topCareer.category || 'Matched from your assessment profile',
+          tag: `${String(bundle.topCareer.confidenceLevel || 'medium').toUpperCase()} CONFIDENCE`,
+        });
+      } else {
+        setTopCareer(null);
+      }
+
+      setSkillRecs((bundle?.skillRecommendations || []).slice(0, 6));
+    } catch {
+      setTopCareer(null);
+      setSkillRecs([]);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  };
+
+  const fetchHiringFeed = async () => {
+    try {
+      const feed = await fetchJobs();
+      const recentJobs = feed?.recentJobs || [];
+      setJobs(recentJobs);
+    } catch {
+      setJobs([]);
+    }
+  };
+
+  const fetchUserInsights = async (): Promise<void> => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const data = await apiFetch<any>('/api/progress/user/dashboard', undefined, { auth: true });
+
+      const xp = Math.round(data?.data?.stats?.totalXp ?? 0);
+      const streak = data?.data?.stats?.currentStreak ?? 0;
+      setUserInsights({ xp, streak });
+
+      let current = 0;
+      const step = Math.ceil(xp / 40);
+      const timer = setInterval(() => {
+        current = Math.min(current + step, xp);
+        setXpAnimated(current);
+        if (current >= xp) {
+          clearInterval(timer);
+        }
+      }, 40);
+    } catch {
+      // ignore for guests
+    }
+  };
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLivePulse((currentPulse) => {
-        const nextPulse = currentPulse + (Math.random() > 0.5 ? 2 : -2);
-        return Math.max(68, Math.min(97, nextPulse));
-      });
-      setActiveAlertIndex((currentIndex) => (currentIndex + 1) % hiringAlerts.length);
-      setLastUpdated(new Date());
-    }, 4500);
+    const loadData = async () => {
+      await fetchUserInsights();
 
-    return () => clearInterval(interval);
+      await Promise.all([
+        fetchRecommendations(),
+        fetchHiringFeed(),
+      ]);
+
+      setLoading(false);
+    };
+
+    loadData();
+
   }, []);
 
-  const marketSuggestions = useMemo(
-    () => buildMarketSuggestions(userName, assessmentAnswers),
-    [assessmentAnswers, userName]
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white flex items-center justify-center relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000" />
+        </div>
+        <div className="relative text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-transparent border-t-indigo-500 border-r-purple-500 rounded-full mx-auto mb-4"
+          />
+          <motion.p
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="text-gray-300 font-medium"
+          >
+            Loading your AI dashboard...
+          </motion.p>
+        </div>
+      </div>
+    );
+  }
 
-  const updatedLabel = lastUpdated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const navItems = [
+    { label: 'Career Matches', onClick: onViewMatches, icon: '🎯' },
+    { label: 'Roadmaps', onClick: onViewRoadmaps, icon: '🗺️' },
+    { label: 'Catalog', onClick: onViewCatalog, icon: '📚' },
+    { label: 'Mega Catalog', onClick: onViewMegaCatalog, icon: '🚀' },
+    { label: 'Profile', onClick: onViewProfile, icon: '👤' },
+  ];
 
   return (
-    <div className="min-h-screen">
-      <nav className="glass-strong border-b border-white/10 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center">
-              <Icons.Brain />
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 overflow-hidden -z-10">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-cyan-500/20 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-4000" />
+      </div>
+
+      {/* PREMIUM NAV */}
+      <nav className="sticky top-0 z-20 bg-black/40 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/50">
+                P
+              </div>
+              <span className="font-bold text-lg hidden sm:block text-white">Pragyan</span>
+            </motion.div>
+
+            {/* Nav Items */}
+            <div className="flex items-center gap-1">
+              {navItems.map((item, idx) => (
+                <motion.button
+                  key={item.label}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={item.onClick}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-all group"
+                >
+                  <span className="text-base group-hover:scale-110 transition-transform">{item.icon}</span>
+                  <span className="hidden md:block font-medium">{item.label}</span>
+                </motion.button>
+              ))}
+
+              {onOpenAdmin && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  onClick={onOpenAdmin}
+                  className="px-3 py-2 rounded-lg text-sm text-purple-300 hover:bg-purple-500/20 border border-purple-500/30 ml-2 transition-all font-medium"
+                >
+                  🛡️ Admin
+                </motion.button>
+              )}
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                onClick={() => {
+                  if (onLogout) onLogout();
+                }}
+                className="ml-2 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/20 border border-red-500/30 transition-all font-medium"
+              >
+                Logout
+              </motion.button>
             </div>
-            <h1 className="text-xl font-bold text-white">Pragyan</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <button onClick={onViewProfile} className="w-10 h-10 gradient-primary rounded-full flex items-center justify-center text-lg hover:scale-110 transition-transform">
-              {userName.charAt(0).toUpperCase()}
-            </button>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-3">
-            Welcome back, <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">{userName}</span>! 👋
-          </h2>
-          <p className="text-xl text-gray-400">Here's your career guidance dashboard</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <GlassCard strong className="p-6 lg:col-span-2 relative overflow-hidden border border-cyan-400/20 bg-gradient-to-br from-slate-950 via-indigo-950 to-cyan-950">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.22),transparent_28%)]"></div>
-            <div className="absolute inset-0 opacity-40 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-cyan-400/20 text-xs font-semibold text-cyan-200 uppercase tracking-[0.22em] mb-4">
-                    <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse"></span>
-                    Top job trends
-                  </div>
-                  <h3 className="text-3xl font-bold text-white mb-2">Hot roles hiring right now</h3>
-                  <p className="text-slate-300 max-w-xl">
-                    Live India hiring signals, fastest growing sectors, and the skills companies are paying for today.
-                  </p>
-                </div>
-                <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-3xl">
-                  📈
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                <div className="glass rounded-2xl p-4 border border-white/10">
-                  <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Live pulse</div>
-                  <div className="text-2xl font-bold text-cyan-300">{livePulse}%</div>
-                  <div className="text-xs text-gray-400 mt-1">Updated {updatedLabel}</div>
-                </div>
-                <div className="glass rounded-2xl p-4 border border-white/10">
-                  <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Trending careers</div>
-                  <div className="text-2xl font-bold text-white">4 roles</div>
-                  <div className="text-xs text-gray-400 mt-1">Above 84% demand</div>
-                </div>
-                <div className="glass rounded-2xl p-4 border border-white/10">
-                  <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Salary momentum</div>
-                  <div className="text-2xl font-bold text-emerald-300">+22%</div>
-                  <div className="text-xs text-gray-400 mt-1">Top roles this quarter</div>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-5">
-                {trendingCareers.slice(0, 3).map((career) => (
-                  <div key={career.name} className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <div>
-                        <div className="text-white font-semibold">{career.name}</div>
-                        <div className="text-xs text-gray-400">{career.salary}</div>
-                      </div>
-                      <span className="text-xs font-semibold text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">
-                        {career.tag}
-                      </span>
-                    </div>
-                    <AnimatedProgress value={career.demand} color="secondary" />
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <GlassButton variant="secondary" className="bg-white/15 hover:bg-white/25" onClick={onViewMatches}>
-                  Explore matches
-                </GlassButton>
-                <span className="px-3 py-2 rounded-full glass border border-white/10 text-sm text-slate-200">
-                  India hiring radar
-                </span>
-                <span className="px-3 py-2 rounded-full glass border border-white/10 text-sm text-slate-200">
-                  AI-backed suggestions
-                </span>
-              </div>
-            </div>
-          </GlassCard>
-
-          <div className="space-y-6">
-            <GlassCard strong className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-white flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Hiring Alerts
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">Live openings matching current market demand</p>
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[11px] font-semibold uppercase tracking-[0.18em]">
-                  Live
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {hiringAlerts.map((alert, index) => (
-                  <div
-                    key={alert.company}
-                    className={`rounded-2xl p-4 border transition-all duration-300 ${
-                      index === activeAlertIndex
-                        ? 'bg-white/10 border-emerald-500/30'
-                        : 'bg-white/5 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                      <div className="text-white font-medium">{alert.company}</div>
-                      {index === activeAlertIndex && (
-                        <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">Now hiring</span>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-200">{alert.role}</div>
-                    <div className="text-xs text-gray-500 mt-1">{alert.note}</div>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-
-            <GlassCard strong className="p-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Icons.Target />
-                  Quick Stat
-                </div>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-gray-400">Summary</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <div className="text-2xl font-bold text-indigo-300">94%</div>
-                  <div className="text-xs text-gray-400 mt-1">Top Match Score</div>
-                </div>
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <div className="text-2xl font-bold text-emerald-300">72%</div>
-                  <div className="text-xs text-gray-400 mt-1">Profile Complete</div>
-                </div>
-              </div>
-            </GlassCard>
+      {/* MAIN CONTENT */}
+      <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
+        {/* PREMIUM HERO SECTION */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="space-y-6"
+        >
+          <div>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 mb-2"
+            >
+              Welcome back 👋
+            </motion.p>
+            <motion.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-5xl md:text-6xl font-bold text-white tracking-tight"
+            >
+              {userName}
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-gray-400 mt-3 text-lg font-medium"
+            >
+              Your AI learning journey is accelerating ✨
+            </motion.p>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <GlassCard hover strong className="p-6 cursor-pointer group" onClick={onViewProfile}>
-            <div className="w-12 h-12 gradient-secondary rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Icons.User />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Smart Profile</h3>
-            <p className="text-gray-400 mb-4">Manage your skills, education, and preferences</p>
-            <div className="mb-3">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-400">Completion</span>
-                <span className="text-indigo-400 font-semibold">72%</span>
+        {/* STATS GRID */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+        >
+          {/* XP Card */}
+          <motion.div
+            whileHover={{ y: -5 }}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-3xl">⚡</span>
+                <span className="text-xs px-2 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-semibold">ACTIVE</span>
               </div>
-              <AnimatedProgress value={72} color="secondary" />
+              <p className="text-gray-400 text-sm font-medium mb-1">Total XP</p>
+              <motion.h3
+                key={xpAnimated}
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="text-4xl font-bold text-cyan-400 tabular-nums"
+              >
+                {xpAnimated}
+              </motion.h3>
+              <p className="text-xs text-gray-500 mt-2">Earn XP by completing tasks</p>
             </div>
-            <GlassButton variant="ghost" size="sm" className="w-full">View Profile →</GlassButton>
-          </GlassCard>
+          </motion.div>
 
-          <GlassCard hover strong className="p-6 cursor-pointer group" onClick={onRetakeAssessment}>
-            <div className="w-12 h-12 gradient-accent rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Icons.Brain />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Retake Assessment</h3>
-            <p className="text-gray-400 mb-4">Update your career matches with a new assessment</p>
-            <div className="glass rounded-xl p-3 mb-4">
-              <div className="text-xs text-gray-400">Last taken: Today</div>
-            </div>
-            <GlassButton variant="ghost" size="sm" className="w-full">Start Now →</GlassButton>
-          </GlassCard>
-
-          <GlassCard hover strong className="p-6 cursor-pointer group">
-            <div className="w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Icons.Book />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Learning Paths</h3>
-            <p className="text-gray-400 mb-4">Personalized roadmaps for your target careers</p>
-            <div className="glass rounded-xl p-3 mb-4">
-              <div className="text-xs text-gray-400">3 roadmaps available</div>
-            </div>
-            <GlassButton variant="ghost" size="sm" className="w-full">Explore →</GlassButton>
-          </GlassCard>
-        </div>
-
-        <GlassCard strong className="mt-6 p-6 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.12),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.16),transparent_28%)]"></div>
-          <div className="absolute inset-0 opacity-30 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-cyan-400/20 text-xs font-semibold text-cyan-200 uppercase tracking-[0.22em] mb-3">
-                  <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse"></span>
-                  Top job trends
-                </div>
-                <h3 className="text-xl md:text-2xl font-bold text-white">Current Job Trends in India</h3>
-                <p className="text-gray-300 mt-1">Trending careers, fast-growing sectors, in-demand skills, and live hiring alerts.</p>
+          {/* Streak Card */}
+          <motion.div
+            whileHover={{ y: -5 }}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-3xl">🔥</span>
+                <span className="text-xs px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-semibold">{userInsights.streak > 0 ? 'ON FIRE' : 'START NOW'}</span>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-semibold uppercase tracking-[0.18em]">
-                Live now
-              </span>
+              <p className="text-gray-400 text-sm font-medium mb-1">Learning Streak</p>
+              <h3 className="text-4xl font-bold text-amber-400 tabular-nums">{userInsights.streak}d</h3>
+              <p className="text-xs text-gray-500 mt-2">Keep learning daily to build momentum</p>
             </div>
+          </motion.div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-              <div className="xl:col-span-7 space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Live pulse</div>
-                    <div className="text-2xl font-bold text-cyan-300">{livePulse}%</div>
-                    <div className="text-xs text-gray-400 mt-1">Updated {updatedLabel}</div>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Trending careers</div>
-                    <div className="text-2xl font-bold text-white">4 roles</div>
-                    <div className="text-xs text-gray-400 mt-1">Above 84% demand</div>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">Salary momentum</div>
-                    <div className="text-2xl font-bold text-emerald-300">+22%</div>
-                    <div className="text-xs text-gray-400 mt-1">Top roles this quarter</div>
-                  </div>
-                </div>
+          {/* Assessment Card */}
+          <motion.button
+            whileHover={{ y: -5 }}
+            onClick={onRetakeAssessment}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden text-left hover:border-green-500/50 transition-all"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-3xl">📝</span>
+                <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-300 font-semibold">RECOMMENDED</span>
+              </div>
+              <p className="text-gray-400 text-sm font-medium mb-1">Quick Access</p>
+              <p className="text-sm font-semibold text-green-400 group-hover:text-green-300 transition-colors">Retake Assessment</p>
+              <p className="text-xs text-gray-500 mt-2">Get fresh career insights</p>
+            </div>
+          </motion.button>
 
-                <ChartContainer config={chartConfig} className="h-[260px] w-full">
-                  <AreaChart data={marketPulseData} margin={{ left: 4, right: 20, top: 10, bottom: 0 }}>
+          {/* Top Match Card */}
+          <motion.div
+            whileHover={{ y: -5 }}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-3xl">🎯</span>
+                <span className="text-xs px-2 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-semibold">AI MATCH</span>
+              </div>
+              <p className="text-gray-400 text-sm font-medium mb-1">Top Match</p>
+              <p className="text-sm font-semibold text-purple-300 truncate">{topCareer?.name || 'Complete assessment'}</p>
+              <p className="text-xs text-gray-500 mt-2">Based on your profile</p>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* CAREER MATCH SECTION */}
+        {recommendationsLoading ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 overflow-hidden animate-pulse"
+          >
+            <div className="h-6 w-48 bg-white/10 rounded mb-4" />
+            <div className="h-12 w-96 bg-white/10 rounded mb-6" />
+            <div className="h-20 w-40 bg-white/10 rounded" />
+          </motion.div>
+        ) : topCareer ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 overflow-hidden hover:border-indigo-500/30 transition-all"
+          >
+            {/* Animated background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
+
+            <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+              {/* Left Content */}
+              <div className="flex-1 space-y-4">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-center gap-2"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <p className="text-sm font-semibold text-emerald-400 tracking-widest">BEST CAREER MATCH</p>
+                </motion.div>
+
+                <motion.h2
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-5xl md:text-6xl font-bold text-white leading-tight"
+                >
+                  {topCareer.name}
+                </motion.h2>
+
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="text-gray-300 text-lg"
+                >
+                  {topCareer.subtitle}
+                </motion.p>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="flex items-center gap-3 flex-wrap pt-2"
+                >
+                  <span className="px-4 py-2 rounded-full bg-indigo-500/20 text-indigo-300 text-sm border border-indigo-500/30 font-semibold">
+                    {topCareer.tag}
+                  </span>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onViewMatches}
+                    className="px-4 py-2 rounded-full bg-white/10 text-white text-sm border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all font-semibold"
+                  >
+                    View All Matches →
+                  </motion.button>
+                </motion.div>
+              </div>
+
+              {/* Right - Match Percentage */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
+                className="lg:flex-shrink-0"
+              >
+                <div className="relative w-48 h-48 flex items-center justify-center">
+                  {/* Animated circle background */}
+                  <svg className="w-full h-full" viewBox="0 0 200 200">
                     <defs>
-                      <linearGradient id="demandFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-demand)" stopOpacity={0.45} />
-                        <stop offset="95%" stopColor="var(--color-demand)" stopOpacity={0.03} />
-                      </linearGradient>
-                      <linearGradient id="salaryFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-salary)" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="var(--color-salary)" stopOpacity={0.02} />
+                      <linearGradient id="matchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#06B6D4" />
+                        <stop offset="100%" stopColor="#8B5CF6" />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={12} stroke="rgba(255,255,255,0.45)" />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={12} width={34} stroke="rgba(255,255,255,0.45)" />
-                    <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                    <Area type="monotone" dataKey="demand" stroke="var(--color-demand)" fill="url(#demandFill)" strokeWidth={3} />
-                    <Area type="monotone" dataKey="salary" stroke="var(--color-salary)" fill="url(#salaryFill)" strokeWidth={3} />
-                  </AreaChart>
-                </ChartContainer>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {marketSuggestions.slice(0, 2).map((suggestion, index) => (
-                    <div key={suggestion.title} className="glass rounded-2xl p-4 border border-white/10">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-2xl gradient-primary flex items-center justify-center text-white font-bold text-sm">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <div className="text-white font-semibold">{suggestion.title}</div>
-                          <div className="text-xs text-gray-400">Personalized for you</div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-300 leading-6">{suggestion.body}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="xl:col-span-5 space-y-5">
-                <div className="glass rounded-2xl p-4 border border-white/10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Icons.Target />
-                        Trending careers in India
-                      </h4>
-                      <p className="text-sm text-gray-400 mt-1">Roles with the strongest hiring momentum this week</p>
-                    </div>
-                    <span className="text-xs font-semibold text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">
-                      Hot
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {trendingCareers.slice(0, 3).map((career) => (
-                      <div key={career.name} className="glass rounded-2xl p-3 border border-white/10">
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div>
-                            <div className="text-white font-medium">{career.name}</div>
-                            <div className="text-xs text-gray-400">{career.salary}</div>
-                          </div>
-                          <span className="text-[11px] font-semibold text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-full">
-                            {career.tag}
-                          </span>
-                        </div>
-                        <AnimatedProgress value={career.demand} color="secondary" />
-                      </div>
-                    ))}
+                    <circle cx="100" cy="100" r="95" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+                    <motion.circle
+                      cx="100"
+                      cy="100"
+                      r="95"
+                      fill="none"
+                      stroke="url(#matchGradient)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      initial={{ strokeDasharray: "600 600", strokeDashoffset: 600 }}
+                      animate={{ strokeDashoffset: 600 - (600 * topCareer.score) / 100 }}
+                      transition={{ delay: 0.5, duration: 1.5, ease: "easeOut" }}
+                      strokeDasharray="600 600"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.8, type: "spring" }}
+                    >
+                      <p className="text-gray-400 text-sm font-medium">Match Score</p>
+                      <h3 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+                        {topCareer.score}%
+                      </h3>
+                    </motion.div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Icons.Lightning />
-                      <h4 className="font-semibold text-white">Fastest growing sectors</h4>
-                    </div>
-                    <div className="space-y-3">
-                      {fastestGrowingSectors.slice(0, 2).map((sector) => (
-                        <div key={sector.sector}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-300">{sector.sector}</span>
-                            <span className="text-emerald-300">+{sector.growth}%</span>
-                          </div>
-                          <AnimatedProgress value={sector.growth} color="accent" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="glass rounded-2xl p-4 border border-white/10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Icons.Book />
-                      <h4 className="font-semibold text-white">Most demanded skills</h4>
-                    </div>
-                    <div className="space-y-3">
-                      {mostDemandedSkills.slice(0, 2).map((skill) => (
-                        <div key={skill.skill}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-300">{skill.skill}</span>
-                            <span className="text-cyan-300">{skill.trend}</span>
-                          </div>
-                          <AnimatedProgress value={skill.demand} color="primary" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="glass-strong rounded-2xl p-4 border border-indigo-500/20">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                      Hiring alerts
-                    </div>
-                    <span className="text-xs uppercase tracking-[0.18em] text-emerald-300">Live</span>
-                  </div>
-                  <div className="space-y-2">
-                    {hiringAlerts.map((alert, index) => (
-                      <div
-                        key={alert.company}
-                        className={`rounded-xl p-3 border transition-all duration-300 ${
-                          index === activeAlertIndex
-                            ? 'bg-white/10 border-emerald-500/30'
-                            : 'bg-white/5 border-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3 mb-1">
-                          <div className="text-white font-medium">{alert.company}</div>
-                          {index === activeAlertIndex && (
-                            <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">Now hiring</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-300">{alert.role}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              </motion.div>
             </div>
+          </motion.div>
+        ) : null}
+
+        {/* SKILL RECOMMENDATIONS */}
+        {recommendationsLoading ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-4"
+          >
+            <div className="h-8 w-56 bg-white/10 rounded animate-pulse" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white/10 rounded-2xl p-5 animate-pulse">
+                  <div className="h-5 w-24 bg-white/10 rounded mb-3" />
+                  <div className="h-3 w-full bg-white/10 rounded mb-3" />
+                  <div className="h-3 w-3/4 bg-white/10 rounded" />
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        ) : skillRecs.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">Recommended Skills</h2>
+              <motion.span
+                whileHover={{ scale: 1.05 }}
+                className="text-xs px-4 py-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-semibold"
+              >
+                ✨ AI Personalised
+              </motion.span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {skillRecs.map((rec, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + i * 0.05 }}
+                  whileHover={{ y: -5 }}
+                  onClick={onViewRoadmaps}
+                  className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-5 border border-white/10 hover:border-indigo-500/30 transition-all cursor-pointer overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-semibold text-white text-sm group-hover:text-indigo-300 transition-colors">{rec.skill}</span>
+                      <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-lg">{rec.confidence}%</span>
+                    </div>
+
+                    <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden border border-white/5">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${rec.confidence}%` }}
+                        transition={{ delay: 0.5 + i * 0.05, duration: 0.8 }}
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 rounded-full shadow-lg shadow-indigo-500/50"
+                      />
+                    </div>
+
+                    <p className="text-xs text-gray-400 mt-3 line-clamp-2">{rec.reason}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        ) : null}
+
+        {/* CAREER MATCHES */}
+        {recommendationsLoading ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-4"
+          >
+            <div className="h-8 w-40 bg-white/10 rounded animate-pulse" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white/10 rounded-2xl p-6 animate-pulse">
+                  <div className="h-6 w-2/3 bg-white/10 rounded mb-3" />
+                  <div className="h-4 w-1/2 bg-white/10 rounded mb-3" />
+                  <div className="h-3 w-full bg-white/10 rounded mb-4" />
+                  <div className="h-10 w-full bg-white/10 rounded" />
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        ) : jobs.length > 0 ? (
+          <div className="space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">🔥 Recent Hiring for Your Role</h2>
+                  <p className="text-sm text-gray-400 font-medium mt-1">Latest openings from RapidAPI, matched to your skills</p>
+                </div>
+                <span className="text-sm text-gray-400 font-medium">{jobs.length} openings</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {jobs.map((job, idx) => {
+                  const score = job.matchScore ?? 0;
+                  return (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 + idx * 0.05 }}
+                      whileHover={{ y: -5 }}
+                      className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                      <div className="relative z-10">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">{job.title}</h3>
+                            <p className="text-gray-400 text-sm mt-1">{job.company}</p>
+                            <p className="text-gray-500 text-xs mt-2">📍 {job.location}</p>
+                            <p className="text-[11px] uppercase tracking-widest text-cyan-300/80 mt-3">{job.source}</p>
+                          </div>
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.6 + idx * 0.05 }}
+                            className="text-3xl font-bold text-cyan-400 tabular-nums"
+                          >
+                            {score}%
+                          </motion.span>
+                        </div>
+
+                        <div className="mt-5 space-y-3">
+                          <div>
+                            <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden border border-white/5">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${score}%` }}
+                                transition={{ delay: 0.6 + idx * 0.05, duration: 0.8 }}
+                                className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full shadow-lg shadow-purple-500/50"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1.5 font-medium">Match score</p>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3 pt-2">
+                            <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${job.applied ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-gray-300'}`}>
+                              {job.applied ? 'Applied' : 'Recent Hiring'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await applyForJob(job.id);
+                                  setJobs((currentJobs) =>
+                                    currentJobs.map((currentJob) =>
+                                      currentJob.id === job.id
+                                        ? { ...currentJob, applied: true, appliedAt: new Date().toISOString() }
+                                        : currentJob
+                                    )
+                                  );
+                                  window.open(job.applyLink, '_blank', 'noopener,noreferrer');
+                                } catch {
+                                  window.open(job.applyLink, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 transition-all rounded-xl py-2.5 font-semibold text-sm text-center"
+                            >
+                              {job.applied ? 'Applied' : 'Apply Now'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+
+            {jobs.some((job) => job.applied) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white">✅ Jobs You Applied For</h2>
+                    <p className="text-sm text-gray-400 font-medium mt-1">Track the roles you already opened</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {jobs
+                    .filter((job) => job.applied)
+                    .map((job, idx) => (
+                      <motion.div
+                        key={job.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 + idx * 0.05 }}
+                        className="group relative bg-gradient-to-br from-emerald-500/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-emerald-500/20 overflow-hidden"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-transparent to-transparent opacity-100" />
+                        <div className="relative z-10">
+                          <h3 className="text-lg font-bold text-white">{job.title}</h3>
+                          <p className="text-gray-400 text-sm mt-1">{job.company}</p>
+                          <p className="text-gray-500 text-xs mt-2">📍 {job.location}</p>
+                          <p className="text-xs text-emerald-300 mt-4 font-semibold">Applied on {job.appliedAt ? new Date(job.appliedAt).toLocaleDateString() : 'recently'}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                </div>
+              </motion.div>
+            )}
           </div>
-        </GlassCard>
+        ) : null}
+
+        {/* QUICK ACTIONS */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="space-y-4 pb-8"
+        >
+          <h2 className="text-2xl md:text-3xl font-bold text-white">Quick Actions</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Skills Roadmaps', icon: '⚡', desc: 'Start structured learning', fn: onViewRoadmaps, gradient: 'from-blue-500' },
+              { label: 'Career Catalog', icon: '📚', desc: 'Browse all paths', fn: onViewCatalog, gradient: 'from-purple-500' },
+              { label: 'Mega Catalog', icon: '🚀', desc: '100+ roadmaps', fn: onViewMegaCatalog, gradient: 'from-green-500' },
+              { label: 'My Profile', icon: '👤', desc: 'Update your info', fn: onViewProfile, gradient: 'from-amber-500' },
+            ].map((item, idx) => (
+              <motion.button
+                key={item.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 + idx * 0.05 }}
+                whileHover={{ y: -5 }}
+                onClick={item.fn}
+                className={`group relative bg-gradient-to-br ${item.gradient}/10 to-transparent backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-6 text-left transition-all overflow-hidden`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative z-10">
+                  <motion.div
+                    whileHover={{ scale: 1.2, rotate: 10 }}
+                    className="text-4xl mb-4 origin-left"
+                  >
+                    {item.icon}
+                  </motion.div>
+                  <h3 className="font-semibold text-white text-sm group-hover:text-indigo-300 transition-colors">{item.label}</h3>
+                  <p className="text-xs text-gray-400 mt-1">{item.desc}</p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </div>
   );
