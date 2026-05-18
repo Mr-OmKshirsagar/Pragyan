@@ -2,8 +2,10 @@
 
 import { Request, Response } from 'express';
 import { aiRecommendationService } from '@/services/ai-recommendation';
+import { aiProvider } from '@/services/aiProvider';
 import { sendSuccess, sendError } from '@/utils/response';
 import { asyncHandler } from '@/middleware/errorHandler';
+import aiTelemetry from '@/lib/aiTelemetry';
 
 export const getRecommendations = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
@@ -45,4 +47,23 @@ export const getPersonalizedRoadmap = asyncHandler(async (req: Request, res: Res
   );
 
   return sendSuccess(res, roadmaps, 200, 'Personalized roadmaps generated');
+});
+
+export const getStatus = asyncHandler(async (_req: Request, res: Response) => {
+  const runtime = aiProvider.getRuntime();
+  return sendSuccess(
+    res,
+    {
+      enabled: runtime.provider !== 'local',
+      provider: runtime.provider,
+      model: runtime.model,
+    },
+    200,
+    'AI status fetched'
+  );
+});
+
+export const getTelemetry = asyncHandler(async (_req: Request, res: Response) => {
+  const data = aiTelemetry.getTelemetry();
+  return sendSuccess(res, data, 200, 'AI telemetry');
 });

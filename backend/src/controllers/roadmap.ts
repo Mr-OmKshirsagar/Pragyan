@@ -3,6 +3,8 @@
 import { Request, Response } from 'express';
 import { roadmapService } from '@/services/roadmap';
 import { progressService } from '@/services/progress';
+import { recommendationEngineService } from '@/services/recommendation-engine';
+import { authService } from '@/services/auth';
 import { sendSuccess, sendPaginated, sendError } from '@/utils/response';
 import { CreateRoadmapInput, SearchRoadmapInput } from '@/validators/roadmap';
 import { asyncHandler } from '@/middleware/errorHandler';
@@ -126,4 +128,18 @@ export const updateRoadmapTaskProgress = asyncHandler(async (req: Request, res: 
   });
 
   return sendSuccess(res, result, 200, 'Task progress updated');
+});
+
+export const skillUp = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 401, 'Unauthorized');
+
+  const { careerId } = req.params;
+  if (!careerId) return sendError(res, 400, 'careerId is required');
+
+  const explanation = await recommendationEngineService.explainCareer(req.user.id, careerId);
+  if (!explanation) return sendError(res, 404, 'Career not found');
+
+  const user = await authService.getUserById(req.user.id);
+
+  return sendSuccess(res, { explanation, user }, 200, 'SkillUp payload fetched');
 });

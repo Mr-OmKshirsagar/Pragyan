@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NewLanding } from "./pages/NewLanding";
 import { NewAuth } from "./pages/NewAuth";
 import { LanguageSelector } from "./pages/LanguageSelector";
@@ -12,11 +12,11 @@ import { SkillsRoadmapPage } from "./pages/SkillsRoadmapPage";
 import { SkillDetailPage } from "./pages/SkillDetailPage";
 import { DailyRoadmapView } from "./pages/DailyRoadmapView";
 import { RoadmapCatalog } from "./pages/RoadmapCatalog";
-import { MegaCatalog } from "./pages/MegaCatalog";
+// Mega catalog removed per request
 import { ResourceDetailPage } from "./pages/ResourceDetailPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import type { Resource, SkillRoadmap } from "./types/roadmap";
-import type { ExpandedRoadmap, MegaRoadmap } from "./types/roadmapExpanded";
+import type { ExpandedRoadmap } from "./types/roadmapExpanded";
 import { apiFetch } from "../services/api";
 import { toast } from "sonner";
 
@@ -37,19 +37,18 @@ type Page =
   | 'daily-learning'
   | 'roadmap-catalog'
   | 'roadmap-detail'
-  | 'mega-catalog'
-  | 'mega-roadmap-detail'
   | 'resource-detail';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
+  const [pageHistory, setPageHistory] = useState<Page[]>([]);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('USER');
   const [assessmentAnswers, setAssessmentAnswers] = useState<Record<string, any>>({});
   const [selectedCareerId, setSelectedCareerId] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<SkillRoadmap | null>(null);
   const [selectedExpandedRoadmap, setSelectedExpandedRoadmap] = useState<ExpandedRoadmap | null>(null);
-  const [selectedMegaRoadmap, setSelectedMegaRoadmap] = useState<MegaRoadmap | null>(null);
+  
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [resourceTaskTitle, setResourceTaskTitle] = useState('');
   const [previousPage, setPreviousPage] = useState<Page>('skill-detail');
@@ -65,8 +64,6 @@ export default function App() {
     'daily-learning',
     'roadmap-catalog',
     'roadmap-detail',
-    'mega-catalog',
-    'mega-roadmap-detail',
     'resource-detail',
   ];
 
@@ -94,7 +91,7 @@ export default function App() {
         }
 
         if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'register') {
-          setCurrentPage('dashboard');
+          navigateTo('dashboard');
         }
       } catch {
         localStorage.removeItem('accessToken');
@@ -105,10 +102,29 @@ export default function App() {
     loadSession();
   }, []);
 
+  const navigateTo = (page: Page) => {
+    setPageHistory((h) => [...h, currentPage]);
+    setCurrentPage(page);
+  };
+
+  const goBack = () => {
+    setPageHistory((h) => {
+      if (h.length === 0) {
+        // fallback to landing
+        setCurrentPage('landing');
+        return [];
+      }
+      const last = h[h.length - 1];
+      const newHistory = h.slice(0, -1);
+      setCurrentPage(last);
+      return newHistory;
+    });
+  };
+
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     if (!accessToken && protectedPages.includes(currentPage)) {
-      setCurrentPage('login');
+      navigateTo('login');
     }
   }, [currentPage]);
 
@@ -135,7 +151,7 @@ export default function App() {
     };
   }, []);
 
-  const normalizeSkillColor = (color: ExpandedRoadmap['color'] | MegaRoadmap['color']): SkillRoadmap['color'] => {
+  const normalizeSkillColor = (color: ExpandedRoadmap['color']): SkillRoadmap['color'] => {
     if (color === 'warning' || color === 'danger') {
       return 'accent';
     }
@@ -147,11 +163,11 @@ export default function App() {
     setSelectedResource(resource);
     setResourceTaskTitle(taskTitle);
     setPreviousPage(currentPage);
-    setCurrentPage('resource-detail');
+    navigateTo('resource-detail');
   };
 
   const handleBackFromResource = () => {
-    setCurrentPage(previousPage);
+    navigateTo(previousPage);
     setSelectedResource(null);
     setResourceTaskTitle('');
   };
@@ -160,12 +176,12 @@ export default function App() {
     setUserName(displayName);
     const role = localStorage.getItem('userRole') || 'USER';
     setUserRole(role);
-    setCurrentPage(role === 'ADMIN' ? 'admin' : 'dashboard');
+    navigateTo(role === 'ADMIN' ? 'admin' : 'dashboard');
   };
 
   const handleRegister = (name: string, _email: string) => {
     setUserName(name);
-    setCurrentPage('language');
+    navigateTo('language');
   };
 
   const handleLogout = () => {
@@ -183,50 +199,64 @@ export default function App() {
     setUserName('');
     setUserRole('USER');
     setAssessmentAnswers({});
-    setCurrentPage('landing');
+    navigateTo('landing');
     toast.success('Logged out successfully');
   };
 
   const handleAssessmentComplete = (answers: Record<string, any>) => {
     setAssessmentAnswers(answers);
-    setCurrentPage('analysis');
+    navigateTo('analysis');
   };
 
   const handleAnalysisComplete = () => {
-    setCurrentPage('dashboard');
+    navigateTo('dashboard');
   };
 
   const handleSelectCareer = (careerId: string) => {
     setSelectedCareerId(careerId);
-    setCurrentPage('career-detail');
+    navigateTo('career-detail');
   };
 
   const handleSelectSkill = (skill: SkillRoadmap) => {
     setSelectedSkill(skill);
-    setCurrentPage('skill-detail');
+    // ensure selectedSkill state is applied before navigating
+    setTimeout(() => navigateTo('skill-detail'), 0);
   };
 
   const handleStartLearning = (skill: SkillRoadmap) => {
     setSelectedSkill(skill);
-    setCurrentPage('daily-learning');
+    navigateTo('daily-learning');
   };
 
   const handleSelectExpandedRoadmap = (roadmap: ExpandedRoadmap) => {
     setSelectedExpandedRoadmap(roadmap);
-    setCurrentPage('roadmap-detail');
-  };
-
-  const handleSelectMegaRoadmap = (roadmap: MegaRoadmap) => {
-    setSelectedMegaRoadmap(roadmap);
-    setCurrentPage('mega-roadmap-detail');
+    navigateTo('roadmap-detail');
   };
 
   return (
     <div className="size-full">
+      <header className="glass-strong border-b border-white/10 px-4 py-2 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto flex items-center gap-3">
+          <button
+            onClick={goBack}
+            disabled={pageHistory.length === 0}
+            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${pageHistory.length === 0 ? 'opacity-40 cursor-default' : 'hover:bg-white/5'}`}
+          >
+            ← Back
+          </button>
+          <div className="flex-1 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">Pr</div>
+              <span className="text-sm font-semibold text-white">Pragyan</span>
+            </div>
+            <div className="text-xs text-gray-300">{currentPage.replace('-', ' ')}</div>
+          </div>
+        </div>
+      </header>
       {currentPage === 'landing' && (
         <NewLanding
-          onGetStarted={() => setCurrentPage('register')}
-          onLogin={() => setCurrentPage('login')}
+          onGetStarted={() => navigateTo('register')}
+          onLogin={() => navigateTo('login')}
         />
       )}
 
@@ -235,9 +265,9 @@ export default function App() {
           mode="login"
           onLogin={handleLogin}
           onRegister={handleRegister}
-          onToggleMode={() => setCurrentPage('register')}
-          onBack={() => setCurrentPage('landing')}
-          onLogoClick={() => setCurrentPage('landing')}
+          onToggleMode={() => navigateTo('register')}
+          onBack={() => navigateTo('landing')}
+          onLogoClick={() => navigateTo('landing')}
         />
       )}
 
@@ -246,20 +276,20 @@ export default function App() {
           mode="register"
           onLogin={handleLogin}
           onRegister={handleRegister}
-          onToggleMode={() => setCurrentPage('login')}
-          onBack={() => setCurrentPage('landing')}
-          onLogoClick={() => setCurrentPage('landing')}
+          onToggleMode={() => navigateTo('login')}
+          onBack={() => navigateTo('landing')}
+          onLogoClick={() => navigateTo('landing')}
         />
       )}
 
       {currentPage === 'language' && (
-        <LanguageSelector onContinue={() => setCurrentPage('assessment')} />
+        <LanguageSelector onContinue={() => navigateTo('assessment')} />
       )}
 
       {currentPage === 'assessment' && (
         <AdaptiveAssessment
           onComplete={handleAssessmentComplete}
-          onBack={() => setCurrentPage('language')}
+          onBack={() => navigateTo('language')}
         />
       )}
 
@@ -271,40 +301,39 @@ export default function App() {
         <Dashboard
           userName={userName || 'User'}
           assessmentAnswers={assessmentAnswers}
-          onOpenAdmin={userRole === 'ADMIN' ? () => setCurrentPage('admin') : undefined}
-          onViewMatches={() => setCurrentPage('matches')}
-          onViewProfile={() => setCurrentPage('profile')}
-          onRetakeAssessment={() => setCurrentPage('language')}
-          onViewRoadmaps={() => setCurrentPage('skills-roadmap')}
-          onViewCatalog={() => setCurrentPage('roadmap-catalog')}
-          onViewMegaCatalog={() => setCurrentPage('mega-catalog')}
+          onOpenAdmin={userRole === 'ADMIN' ? () => navigateTo('admin') : undefined}
+          onViewMatches={() => navigateTo('matches')}
+          onViewProfile={() => navigateTo('profile')}
+          onRetakeAssessment={() => navigateTo('language')}
+          onViewRoadmaps={() => navigateTo('skills-roadmap')}
+          onViewCatalog={() => navigateTo('roadmap-catalog')}
           onLogout={handleLogout}
         />
       )}
 
       {currentPage === 'admin' && (
-        <AdminDashboard onBack={() => setCurrentPage('dashboard')} />
+        <AdminDashboard onBack={() => navigateTo('dashboard')} />
       )}
 
       {currentPage === 'matches' && (
         <CareerMatches
           onSelectCareer={handleSelectCareer}
-          onBack={() => setCurrentPage('dashboard')}
-          onProfile={() => setCurrentPage('profile')}
+          onBack={() => navigateTo('dashboard')}
+          onProfile={() => navigateTo('profile')}
         />
       )}
 
       {currentPage === 'career-detail' && (
         <CareerDashboard
           careerId={selectedCareerId}
-          onBack={() => setCurrentPage('matches')}
+          onBack={() => navigateTo('matches')}
         />
       )}
 
       {currentPage === 'profile' && (
         <SmartProfile
           userName={userName || 'User'}
-          onBack={() => setCurrentPage('dashboard')}
+          onBack={() => navigateTo('dashboard')}
         />
       )}
 
@@ -315,21 +344,30 @@ export default function App() {
         />
       )}
 
-      {currentPage === 'skill-detail' && selectedSkill && (
-        <SkillDetailPage
-          skill={selectedSkill}
-          onBack={() => setCurrentPage('skills-roadmap')}
-          onStartLearning={handleStartLearning}
-          onSelectResource={handleSelectResource}
-        />
+      {currentPage === 'skill-detail' && (
+        selectedSkill ? (
+          <SkillDetailPage
+            skill={selectedSkill}
+            onBack={() => navigateTo('skills-roadmap')}
+            onStartLearning={handleStartLearning}
+            onSelectResource={handleSelectResource}
+          />
+        ) : (
+          <div className="min-h-screen flex items-center justify-center p-6">
+            <div className="text-center">
+              <div className="animate-spin w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-300">Loading skill details…</p>
+            </div>
+          </div>
+        )
       )}
 
       {currentPage === 'daily-learning' && selectedSkill && (
         <DailyRoadmapView
           skill={selectedSkill}
-          onBack={() => setCurrentPage('skill-detail')}
+          onBack={() => navigateTo('skill-detail')}
           onComplete={() => {
-            setCurrentPage('skill-detail');
+            navigateTo('skill-detail');
           }}
         />
       )}
@@ -377,17 +415,13 @@ export default function App() {
             prerequisites: selectedExpandedRoadmap.prerequisites,
             relatedSkills: selectedExpandedRoadmap.relatedSkills,
           }}
-          onBack={() => setCurrentPage('roadmap-catalog')}
+          onBack={() => navigateTo('roadmap-catalog')}
           onStartLearning={() => {}}
           onSelectResource={handleSelectResource}
         />
       )}
 
-      {currentPage === 'mega-catalog' && (
-        <MegaCatalog
-          onRoadmapSelect={handleSelectMegaRoadmap}
-        />
-      )}
+      
 
       {currentPage === 'resource-detail' && selectedResource && (
         <ResourceDetailPage

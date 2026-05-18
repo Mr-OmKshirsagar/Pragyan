@@ -63,3 +63,17 @@ export const getJobRecommendations = asyncHandler(async (req: Request, res: Resp
   const recommendations = await recommendationEngineService.getLegacyJobs(req.user.id);
   return sendSuccess(res, recommendations, 200, 'Job recommendations fetched successfully');
 });
+
+export const explainCareer = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) {
+    return sendError(res, 401, 'Unauthorized');
+  }
+
+  const { careerId } = req.params;
+  if (!careerId) return sendError(res, 400, 'careerId is required');
+
+  const explanation = await recommendationEngineService.explainCareer(req.user.id, careerId);
+  if (!explanation) return sendError(res, 404, 'Career not found');
+
+  return sendSuccess(res, explanation, 200, 'Career explanation generated successfully');
+});

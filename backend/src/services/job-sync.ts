@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { prisma } from '@/lib/prisma';
 import { config } from '@/config/env';
+import { MongoClient } from 'mongodb';
 
 interface RapidApiJob {
   job_title?: string;
@@ -58,6 +59,7 @@ function extractJobSkills(
   availableSkills: string[]
 ): string[] {
   const haystack = normalizeSkillText(`${title} ${description}`);
+  const haystackWords = new Set(haystack.split(' '));
 
   return Array.from(
     new Set(
@@ -66,7 +68,23 @@ function extractJobSkills(
         .sort((left, right) => right.length - left.length)
         .filter((skill) => {
           const normalizedSkill = normalizeSkillText(skill);
-          return normalizedSkill.length > 1 && haystack.includes(normalizedSkill);
+          if (!normalizedSkill || normalizedSkill.length < 2) return false;
+
+          // Exact phrase match (preferred)
+          if (haystack.includes(normalizedSkill)) return true;
+
+          // Token intersection: if any significant token of the skill appears in the text
+          const tokens = normalizedSkill.split(' ').filter((t) => t.length >= 3);
+          for (const t of tokens) {
+            if (haystackWords.has(t)) return true;
+          }
+
+          // Fallback: partial substring match for longer skills
+          if (normalizedSkill.length >= 5 && haystack.includes(normalizedSkill.slice(0, Math.max(3, Math.floor(normalizedSkill.length * 0.6))))) {
+            return true;
+          }
+
+          return false;
         })
     )
   );
@@ -78,38 +96,65 @@ export async function storeJobs() {
     select: { skillName: true },
   });
   const availableSkills = skillRecords.map((skill) => skill.skillName);
+  // If the skill table is empty (common in local/dev), use a small fallback
+  // list of common tech skills to improve extraction coverage.
+  const fallbackCommonSkills = [
+    'javascript','typescript','react','react native','node','python','java','c++','c#','sql','postgresql','mongodb','redis','docker','kubernetes','aws','azure','gcp','html','css','tailwind','graphql','django','flask','spring','go','rust','git','ci/cd'
+  ];
+  const skillsToUse = availableSkills && availableSkills.length > 0 ? availableSkills : fallbackCommonSkills;
 
-  await prisma.job.deleteMany({
-    where: { source: 'JSearch' },
-  });
-
-  const createdJobs: StoredJob[] = [];
-
-  for (const job of jobs) {
-    const createdJob = await prisma.job.create({
-      data: {
-        title: job.job_title || 'Unknown',
-        company: job.employer_name || 'Unknown',
-        location: job.job_city || 'Remote',
-        description: job.job_description || '',
-        salary: job.job_salary || '',
-        skills: extractJobSkills(
-          job.job_title || 'Unknown',
-          job.job_description || '',
-          availableSkills
-        ),
-        applyLink: job.job_apply_link || '',
-        source: 'JSearch',
-      },
+  try {
+    await prisma.job.deleteMany({
+      where: { source: 'JSearch' },
     });
+  } catch (err: any) {
+    // On single-node MongoDB setups Prisma may require a replica set for
+    // certain operations. If deleteMany fails for that reason, log and continue.
+    const msg = typeof err === 'string' ? err : err?.message || String(err);
+    console.warn('Skipping prisma.job.deleteMany due to error:', msg);
+  }
 
-    createdJobs.push(createdJob);
+  const docsToInsert = jobs.map((job) => ({
+    title: job.job_title || 'Unknown',
+    company: job.employer_name || 'Unknown',
+    location: job.job_city || 'Remote',
+    description: job.job_description || '',
+    salary: job.job_salary || null,
+    skills: extractJobSkills(job.job_title || 'Unknown', job.job_description || '', skillsToUse),
+    applyLink: job.job_apply_link || '',
+    source: 'JSearch',
+    createdAt: new Date(),
+  }));
+
+  // If Prisma / MongoDB transactions are unavailable (single-node), fall back to
+  // inserting documents directly via the MongoDB driver to avoid transaction errors.
+  let insertedCount = 0;
+  let insertedDocs: any[] = [];
+
+  if (docsToInsert.length > 0) {
+    const mongoUrl = config.database.url;
+    if (!mongoUrl) {
+      throw new Error('DATABASE_URL is not configured');
+    }
+
+    const client = new MongoClient(mongoUrl);
+    try {
+      await client.connect();
+      const db = client.db();
+      const collection = db.collection('Job');
+      const result = await collection.insertMany(docsToInsert);
+      insertedCount = result.insertedCount ?? 0;
+      // fetch inserted documents' ids and attach back minimal info
+      insertedDocs = docsToInsert.map((d, i) => ({ ...d, id: result.insertedIds[i] }));
+    } finally {
+      await client.close();
+    }
   }
 
   return {
     totalFetched: jobs.length,
-    totalStored: createdJobs.length,
-    jobs: createdJobs,
+    totalStored: insertedCount,
+    jobs: insertedDocs,
   };
 }
 

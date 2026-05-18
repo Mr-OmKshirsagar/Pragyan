@@ -4,7 +4,10 @@ import app from '@/app';
 import { config } from '@/config/env';
 import { prisma } from '@/lib/prisma';
 
-import './cron/jobs';
+// Cron jobs are sensitive to environment (they perform DB writes). Load them only in production
+// or when explicitly enabled via ENABLE_CRON=true. This prevents local runs from triggering
+// heavy scheduled tasks or operations that require Mongo replica sets.
+// The cron jobs will be dynamically imported after DB connection.
 
 const PORT = config.port;
 
@@ -13,6 +16,18 @@ async function startServer() {
     // Test database connection
     await prisma.user.findFirst({}).then(() => null).catch(() => null);
     console.log('✓ Database connected successfully');
+
+    // Conditionally start cron jobs
+    try {
+      const enableCron = process.env.ENABLE_CRON === 'true';
+      if (config.nodeEnv === 'production' || enableCron) {
+        await import('./cron/jobs');
+      } else {
+        console.log('Cron jobs disabled (non-production and ENABLE_CRON not set)');
+      }
+    } catch (err) {
+      console.warn('Failed to initialize cron jobs:', err);
+    }
 
     // Start server
     const server = app.listen(PORT, () => {

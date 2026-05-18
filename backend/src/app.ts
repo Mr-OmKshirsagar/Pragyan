@@ -20,6 +20,7 @@ import skillRoutes from '@/routes/skill';
 import taskRoutes from '@/routes/task';
 import careerMatchingRoutes from '@/routes/career-matching';
 import jobsRoutes from '@/routes/jobs';
+import { redisRateLimiter } from '@/middleware/redisRateLimiter';
 
 const app: Application = express();
 
@@ -84,8 +85,9 @@ app.use('/api/skills', skillRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/progress', progressRoutes);
-app.use('/api/assessment', assessmentRoutes);
-app.use('/api/ai', aiRoutes);
+// Protect assessment and AI endpoints with Redis-backed per-user/IP limiter (falls back to in-memory)
+app.use('/api/assessment', redisRateLimiter, assessmentRoutes);
+app.use('/api/ai', redisRateLimiter, aiRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/career-matching', careerMatchingRoutes);
 app.use('/api/jobs', jobsRoutes);
