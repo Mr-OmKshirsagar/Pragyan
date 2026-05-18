@@ -11,6 +11,7 @@ router.post('/', authenticate, validate(recommendationProfileSchema), recommenda
 router.get('/top-career', authenticate, recommendationsController.getTopCareer);
 router.get('/roadmaps', authenticate, recommendationsController.getRoadmapRecommendations);
 router.get('/skills', authenticate, recommendationsController.getSkillRecommendations);
+router.get('/explain/:careerId', authenticate, recommendationsController.explainCareer);
 
 // Backward-compatible endpoints used by existing frontend modules
 router.get('/careers', authenticate, recommendationsController.getCareerRecommendations);

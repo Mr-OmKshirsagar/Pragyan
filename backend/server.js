@@ -1,8 +1,10 @@
 const { spawn } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const backendDir = __dirname;
-const child = spawn('npm', ['run', 'dev'], {
+const distServer = path.join(backendDir, 'dist', 'server.js');
+const child = spawn('npm', fs.existsSync(distServer) ? ['run', 'start'] : ['run', 'dev'], {
   cwd: backendDir,
   stdio: 'inherit',
   shell: true,

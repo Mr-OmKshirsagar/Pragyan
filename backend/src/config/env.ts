@@ -22,6 +22,14 @@ export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5000',
+  ai: {
+    provider: (process.env.AI_PROVIDER || 'gemini').toLowerCase(),
+  },
+
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || null,
+    model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+  },
   
   database: {
     url: process.env.DATABASE_URL,
@@ -49,4 +57,15 @@ export const config = {
   rapidApi: {
     key: process.env.RAPID_API_KEY,
   },
+
+  redis: {
+    url: process.env.REDIS_URL || null,
+  },
 };
+
+export const hasGeminiKey = Boolean(config.gemini.apiKey);
+export const isLocalAI = config.ai.provider === 'local';
+
+if (!hasGeminiKey && !isLocalAI) {
+  console.warn('Warning: GEMINI_API_KEY is not set. AI features will run in fallback/heuristic mode.');
+}

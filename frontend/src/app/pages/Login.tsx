@@ -10,6 +10,7 @@ interface LoginProps {
 export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,11 +39,20 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
             />
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              trailingSlot={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              }
             />
 
             <div className="flex items-center justify-between text-sm">

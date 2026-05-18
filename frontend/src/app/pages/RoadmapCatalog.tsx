@@ -21,6 +21,21 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
 
+  const selectedCategoryMeta = selectedCategory
+    ? roadmapCategories.find((category) => category.id === selectedCategory)
+    : null;
+
+  const categoryCounts = useMemo(
+    () =>
+      roadmapCategories.reduce<Record<string, number>>((acc, category) => {
+        acc[category.id] = getRoadmapsByCategory(category.id).length;
+        return acc;
+      }, {}),
+    []
+  );
+
+  const hasActiveFilters = Boolean(searchQuery.trim() || selectedCategory || selectedLevel);
+
   // Filter and search logic
   const filteredRoadmaps = useMemo(() => {
     let results = allExpandedRoadmaps;
@@ -60,6 +75,12 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
 
   const getLevelLabel = (level: string) => level.charAt(0).toUpperCase() + level.slice(1);
 
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory(null);
+    setSelectedLevel(null);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -76,6 +97,25 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Learning Roadmaps Catalog</h1>
           <p className="text-slate-400 text-lg">Explore 25+ comprehensive learning paths across all tech domains</p>
+          <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-300">
+            <span className="px-3 py-1 rounded-full bg-slate-700/50 border border-slate-600/60">
+              {allExpandedRoadmaps.length} roadmaps
+            </span>
+            <span className="px-3 py-1 rounded-full bg-slate-700/50 border border-slate-600/60">
+              {roadmapCategories.length} categories
+            </span>
+            <span className="px-3 py-1 rounded-full bg-slate-700/50 border border-slate-600/60">
+              4 difficulty levels
+            </span>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white hover:bg-white/15 transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </motion.div>
 
         {/* Search Bar */}
@@ -112,6 +152,23 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
           transition={{ delay: 0.15 }}
           className="mb-8 space-y-4"
         >
+          {selectedCategoryMeta && (
+            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-4 text-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-white font-semibold mb-1">
+                    <span>{selectedCategoryMeta.icon}</span>
+                    <span>{selectedCategoryMeta.name}</span>
+                  </div>
+                  <p className="text-sm text-slate-300">{selectedCategoryMeta.description}</p>
+                </div>
+                <div className="text-sm text-slate-300">
+                  <span className="font-bold text-white">{categoryCounts[selectedCategoryMeta.id] ?? 0}</span> roadmaps
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Category Filter */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-3">Categories</h3>
@@ -137,7 +194,8 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
                   }`}
                 >
                   <span>{category.icon}</span>
-                  {category.name}
+                  <span>{category.name}</span>
+                  <span className="text-xs opacity-80">({categoryCounts[category.id] ?? 0})</span>
                 </button>
               ))}
             </div>
@@ -174,6 +232,25 @@ export function RoadmapCatalog({ onRoadmapSelect }: RoadmapCatalogProps) {
           <p>
             Showing <span className="font-bold text-white">{filteredRoadmaps.length}</span> roadmap{filteredRoadmaps.length !== 1 ? 's' : ''}
           </p>
+          {hasActiveFilters && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {searchQuery.trim() && (
+                <span className="px-2 py-1 rounded-full bg-slate-700/60 text-slate-200">
+                  Search: “{searchQuery.trim()}”
+                </span>
+              )}
+              {selectedCategoryMeta && (
+                <span className="px-2 py-1 rounded-full bg-slate-700/60 text-slate-200">
+                  Category: {selectedCategoryMeta.name}
+                </span>
+              )}
+              {selectedLevel && (
+                <span className="px-2 py-1 rounded-full bg-slate-700/60 text-slate-200">
+                  Level: {getLevelLabel(selectedLevel)}
+                </span>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* Roadmaps Grid */}

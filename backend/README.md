@@ -89,6 +89,7 @@ GET    /api/roadmaps/:id           - Get single roadmap
 GET    /api/roadmaps/search?q=     - Search roadmaps
 GET    /api/roadmaps/category/:cat - Get roadmaps by category
 GET    /api/roadmaps/categories    - Get all categories
+GET    /api/roadmaps/skillup/:careerId - Skill-up plan (auth, explanation + profile)
 
 POST   /api/roadmaps               - Create roadmap (ADMIN)
 PUT    /api/roadmaps/:id           - Update roadmap (ADMIN)
@@ -120,6 +121,26 @@ GET    /api/ai/recommend-careers                  - Get career recommendations
 GET    /api/ai/roadmaps/:career                   - Get roadmaps for career
 POST   /api/ai/personalized-roadmap               - Generate personalized roadmap
 ```
+
+## AI And Cache Configuration
+
+- `AI_PROVIDER`: set to `gemini` for Gemini or `local` to force deterministic fallback mode.
+- `GEMINI_API_KEY`: enables live Gemini-generated explanations. If missing, backend uses heuristic fallback.
+- `REDIS_URL`: optional Redis connection string for persistent caching. If missing/unavailable, in-memory cache is used.
+
+Example values in `.env`:
+
+```bash
+AI_PROVIDER=gemini
+GEMINI_API_KEY=AIzaSyDNOZao7XxY53ATGARvKAZKmciuzrGQrvw
+GEMINI_MODEL=gemini-1.5-flash
+REDIS_URL=redis://127.0.0.1:6379
+```
+
+Notes:
+- This project uses the official Google Gemini SDK for all AI calls.
+- The default model is `gemini-1.5-flash` via configuration (`config.gemini.model`).
+- AI responses are requested as JSON where possible; the backend has a robust heuristic fallback when the model is unavailable or returns invalid JSON.
 
 ## 📚 API Examples
 

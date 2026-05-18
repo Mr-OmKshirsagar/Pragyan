@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { apiFetch } from '../../services/api';
+import SkillUpModal from '../components/SkillUpModal';
 import { applyForJob, fetchJobs, type JobFeedItem } from '../../services/jobservices';
 import {
   generateRecommendations,
@@ -31,7 +32,6 @@ interface DashboardProps {
   onRetakeAssessment?: () => void;
   onViewRoadmaps?: () => void;
   onViewCatalog?: () => void;
-  onViewMegaCatalog?: () => void;
   onLogout?: () => void;
 }
 
@@ -43,11 +43,11 @@ export default function Dashboard({
   onRetakeAssessment,
   onViewRoadmaps,
   onViewCatalog,
-  onViewMegaCatalog,
   onLogout,
 }: DashboardProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [topCareer, setTopCareer] = useState<TopCareer | null>(null);
+  const [topCareerId, setTopCareerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [recommendationsLoading, setRecommendationsLoading] = useState(true);
   const [userInsights, setUserInsights] = useState<UserInsights>({ xp: 0, streak: 0 });
@@ -75,6 +75,7 @@ export default function Dashboard({
           subtitle: bundle.topCareer.category || 'Matched from your assessment profile',
           tag: `${String(bundle.topCareer.confidenceLevel || 'medium').toUpperCase()} CONFIDENCE`,
         });
+        setTopCareerId(bundle.topCareer.careerId || null);
       } else {
         setTopCareer(null);
       }
@@ -123,6 +124,45 @@ export default function Dashboard({
     }
   };
 
+  const [careerExplanation, setCareerExplanation] = useState<string | null>(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
+  const [showSkillUp, setShowSkillUp] = useState(false);
+
+  const fetchCareerExplanation = async () => {
+    if (!topCareerId) return;
+    setShowExplanationModal(true);
+    setExplanationLoading(true);
+    setCareerExplanation(null);
+    try {
+      const resp = await apiFetch<any>(`/api/recommendations/explain/${topCareerId}`, undefined, { auth: true });
+      const payload = resp?.data;
+      if (payload?.parsed) {
+        // render structured
+        const p = payload.parsed;
+        const parts: string[] = [];
+        if (p.summary) parts.push(p.summary);
+        if (Array.isArray(p.skillGaps) && p.skillGaps.length) parts.push('\nTop skill gaps:\n' + p.skillGaps.map((s: string) => `- ${s}`).join('\n'));
+        if (Array.isArray(p.nextActions) && p.nextActions.length) parts.push('\nNext actions:\n' + p.nextActions.map((a: string) => `- ${a}`).join('\n'));
+        if (Array.isArray(p.roadmap) && p.roadmap.length) {
+          parts.push('\n6-week roadmap:');
+          p.roadmap.forEach((w: any) => {
+            parts.push(`Week ${w.week}: ${Array.isArray(w.items) ? w.items.join(', ') : w.items}`);
+          });
+        }
+        if (p.targetLevel) parts.push(`\nTarget level: ${p.targetLevel}`);
+
+        setCareerExplanation(parts.join('\n\n'));
+      } else {
+        setCareerExplanation(payload?.explanation || 'No explanation available');
+      }
+    } catch (err) {
+      setCareerExplanation('Could not load explanation');
+    } finally {
+      setExplanationLoading(false);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       await fetchUserInsights();
@@ -137,6 +177,19 @@ export default function Dashboard({
 
     loadData();
 
+  }, []);
+
+  // Check AI status (public)
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await apiFetch<{ data: { enabled: boolean } }>(`/api/ai/status`, undefined, { auth: false });
+        setAiEnabled(resp?.data?.enabled ?? false);
+      } catch {
+        setAiEnabled(false);
+      }
+    })();
   }, []);
 
   if (loading) {
@@ -169,7 +222,6 @@ export default function Dashboard({
     { label: 'Career Matches', onClick: onViewMatches, icon: '🎯' },
     { label: 'Roadmaps', onClick: onViewRoadmaps, icon: '🗺️' },
     { label: 'Catalog', onClick: onViewCatalog, icon: '📚' },
-    { label: 'Mega Catalog', onClick: onViewMegaCatalog, icon: '🚀' },
     { label: 'Profile', onClick: onViewProfile, icon: '👤' },
   ];
 
@@ -237,6 +289,13 @@ export default function Dashboard({
       </nav>
 
       {/* MAIN CONTENT */}
+      {aiEnabled === false && (
+        <div className="max-w-7xl mx-auto px-6 py-2">
+          <div className="rounded-md bg-yellow-900/60 border border-yellow-800 text-yellow-100 p-3 text-sm">
+            AI features are currently disabled on the server. To enable full AI explanations, set the OPENAI_API_KEY on the backend and restart the server.
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
         {/* PREMIUM HERO SECTION */}
         <motion.div
@@ -416,9 +475,23 @@ export default function Dashboard({
                   transition={{ delay: 0.7 }}
                   className="flex items-center gap-3 flex-wrap pt-2"
                 >
-                  <span className="px-4 py-2 rounded-full bg-indigo-500/20 text-indigo-300 text-sm border border-indigo-500/30 font-semibold">
-                    {topCareer.tag}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {}}
+                      className="px-4 py-2 rounded-full bg-indigo-500/20 text-indigo-300 text-sm border border-indigo-500/30 font-semibold"
+                    >
+                      {topCareer.tag}
+                    </button>
+                    <button
+                      onClick={() => {
+                        fetchCareerExplanation();
+                        setShowSkillUp(true);
+                      }}
+                      className="text-xs px-3 py-1 rounded-full bg-white/6 hover:bg-white/10 border border-white/10 text-gray-200 transition-all"
+                    >
+                      Skill Up
+                    </button>
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -427,6 +500,41 @@ export default function Dashboard({
                   >
                     View All Matches →
                   </motion.button>
+                  {careerExplanation && (
+                    <div className="mt-4 bg-white/5 rounded-lg p-4 text-sm text-gray-200 border border-white/10">
+                      <strong className="block text-xs text-gray-300 mb-1">AI Explanation</strong>
+                      <p>{careerExplanation}</p>
+                    </div>
+                  )}
+                  {/* Explanation Modal */}
+                  {showExplanationModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/60" onClick={() => setShowExplanationModal(false)} />
+                      <div className="relative max-w-2xl w-full bg-slate-900 border border-white/10 rounded-lg p-6 z-10">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-semibold">Why this career?</h3>
+                            <p className="text-sm text-gray-400">AI-generated explanation tailored to your profile</p>
+                          </div>
+                          <button onClick={() => setShowExplanationModal(false)} className="text-gray-300 hover:text-white">Close</button>
+                        </div>
+                        <div className="mt-4">
+                          {explanationLoading ? (
+                            <div className="text-center text-gray-300">Loading explanation…</div>
+                          ) : (
+                            <div className="text-sm text-gray-200 whitespace-pre-line">{careerExplanation || 'No explanation available.'}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <SkillUpModal careerId={topCareerId} visible={showSkillUp} onClose={() => setShowSkillUp(false)} />
+                  <a
+                    href="#jobs-section"
+                    className="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-200 text-sm border border-cyan-400/30 hover:bg-cyan-500/25 hover:border-cyan-300/50 transition-all font-semibold"
+                  >
+                    View Related Jobs →
+                  </a>
                 </motion.div>
               </div>
 
@@ -569,7 +677,7 @@ export default function Dashboard({
             </div>
           </motion.div>
         ) : jobs.length > 0 ? (
-          <div className="space-y-8">
+          <div id="jobs-section" className="space-y-8 scroll-mt-28">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -716,7 +824,6 @@ export default function Dashboard({
             {[
               { label: 'Skills Roadmaps', icon: '⚡', desc: 'Start structured learning', fn: onViewRoadmaps, gradient: 'from-blue-500' },
               { label: 'Career Catalog', icon: '📚', desc: 'Browse all paths', fn: onViewCatalog, gradient: 'from-purple-500' },
-              { label: 'Mega Catalog', icon: '🚀', desc: '100+ roadmaps', fn: onViewMegaCatalog, gradient: 'from-green-500' },
               { label: 'My Profile', icon: '👤', desc: 'Update your info', fn: onViewProfile, gradient: 'from-amber-500' },
             ].map((item, idx) => (
               <motion.button

@@ -19,6 +19,12 @@
   },
   "homepage": "https://github.com/abhishekpathak17052005/Pragyan#readme",
   "devDependencies": {
-    "@postman/postman-mcp-server": "^2.8.9"
+    "@postman/postman-mcp-server": "^2.8.9",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "module-alias": "^2.3.4",
+    "tsconfig-paths": "^4.2.0"
   }
 }

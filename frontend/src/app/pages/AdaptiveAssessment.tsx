@@ -414,6 +414,24 @@ export function AdaptiveAssessment({ onComplete, onBack }: AdaptiveAssessmentPro
   const [isSavingResult, setIsSavingResult] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+  const [userInterests, setUserInterests] = useState<Set<string>>(new Set());
+
+  const detectAndAddInterest = (text: string) => {
+    const t = String(text).toLowerCase();
+    const newSet = new Set(Array.from(userInterests));
+
+    const techKeywords = ['tech', 'technology', 'ai', 'artificial intelligence', 'web', 'react', 'node', 'python', 'javascript', 'backend', 'frontend', 'full-stack', 'devops', 'cloud'];
+    const creativeKeywords = ['design', 'creative', 'ui/ux', 'visual', 'brand', 'content', 'product design', 'ux', 'ui'];
+    const dataKeywords = ['data', 'analytics', 'machine', 'ml', 'statistics', 'data science', 'analysis'];
+    const businessKeywords = ['strategy', 'marketing', 'finance', 'operations', 'business', 'sales'];
+
+    if (techKeywords.some((k) => t.includes(k))) newSet.add('tech');
+    if (creativeKeywords.some((k) => t.includes(k))) newSet.add('creative');
+    if (dataKeywords.some((k) => t.includes(k))) newSet.add('data');
+    if (businessKeywords.some((k) => t.includes(k))) newSet.add('business');
+
+    setUserInterests(newSet);
+  };
 
   /**
    * Fetch dynamic questions from backend on component mount
@@ -461,6 +479,13 @@ export function AdaptiveAssessment({ onComplete, onBack }: AdaptiveAssessmentPro
       [currentQ.id]: { question: currentQ.question, answer: selectedOptionText, type: currentQ.type }
     };
     setAnswers(newAnswers);
+
+    // detect interests from selected option text and add to side widget
+    try {
+      detectAndAddInterest(selectedOptionText);
+    } catch (e) {
+      // ignore detection errors
+    }
 
     // Move to next question or complete
     if (currentIndex < questions.length - 1) {

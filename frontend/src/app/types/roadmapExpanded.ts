@@ -37,27 +37,7 @@ export interface ExpandedRoadmap {
   learningOutcomes: string[];
 }
 
-// ============ MEGA ECOSYSTEM TYPES ============
-
-export interface MegaRoadmap extends ExpandedRoadmap {
-  tags: string[];
-  subcategory?: string;
-  careerPaths?: string[];
-  xpReward?: number;
-  popularity?: number;
-  trending?: boolean;
-}
-
-export interface MegaRoadmapCategory {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  count: number;
-  subcategories?: string[];
-  roadmapCount?: number;
-}
+// ============ CATALOG TYPES ============
 
 export interface RoadmapCategory {
   id: string;
@@ -66,6 +46,8 @@ export interface RoadmapCategory {
   icon: string;
   color: string;
   count: number;
+  subcategories?: string[];
+  roadmapCount?: number;
 }
 
 export interface SearchResult {

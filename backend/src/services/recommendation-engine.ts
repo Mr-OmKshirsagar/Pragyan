@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { careerMatchingEngine, type AssessmentAnswers } from '@/services/career-matching';
+import safeParseAIResponse from '@/ai/safeParser';
+import { ExplainSchema } from '@/ai/schemas';
+import { generateContent } from '../ai/GeminiProvider';
 
 export interface RecommendationRequestProfile {
   skills?: string[];
@@ -47,6 +50,9 @@ export interface RecommendationResponse {
 }
 
 export class RecommendationEngineService {
+  // Simple in-memory cache for career explanations to reduce LLM calls
+  private explanationCache: Map<string, { explanation: string; parsed?: any; updatedAt: number }> = new Map();
+  private explanationTTL = 1000 * 60 * 60 * 24; // 24 hours
   async generateRecommendations(
     userId: string,
     profile?: RecommendationRequestProfile
@@ -115,6 +121,153 @@ export class RecommendationEngineService {
       location: item.salaryEstimate || 'Salary estimate available in details',
       matchScore: item.match,
     }));
+  }
+
+  async explainCareer(userId: string, careerId: string): Promise<{ explanation: string } | null> {
+    // Load career and user profile
+    const career = await prisma.career.findUnique({ where: { id: careerId }, include: { skillMappings: true } });
+    if (!career) return null;
+
+    // Check Redis cache first (fall back to in-memory cache)
+    const cacheKey = `explain:${careerId}:${userId}`;
+    try {
+      const redis = (await import('@/lib/redis')).redisClient;
+      const cachedRaw = await redis.get(cacheKey);
+      if (cachedRaw) {
+        try {
+          const parsed = JSON.parse(cachedRaw);
+          return { explanation: parsed.summary || parsed.explanation || '', parsed } as any;
+        } catch (e) {
+          // continue to regenerate
+        }
+      }
+      // also check in-memory fallback cache
+      const memCached = this.explanationCache.get(`${userId}:${careerId}`);
+      if (memCached && Date.now() - memCached.updatedAt < this.explanationTTL) {
+        if (memCached.parsed) return { explanation: memCached.explanation, parsed: memCached.parsed } as any;
+      }
+    } catch (err) {
+      // ignore cache errors and continue
+      console.warn('Redis cache check failed, continuing with fallback', err);
+    }
+
+    const profile = await this.loadProfileFromLatestAssessment(userId);
+
+    // Build prompt
+    const promptParts: string[] = [];
+    promptParts.push(`Career: ${career.title}`);
+    if (career.description) promptParts.push(`Description: ${career.description}`);
+    if (career.category) promptParts.push(`Category: ${career.category}`);
+    promptParts.push(`User profile summary:`);
+    promptParts.push(`Skills: ${(profile.skills || []).join(', ') || 'None'}`);
+    promptParts.push(`Interests: ${(profile.interests || []).join(', ') || 'None'}`);
+    promptParts.push(`Personality: ${(profile.personality || []).join(', ') || 'None'}`);
+    promptParts.push(`Education: ${profile.education || 'Not specified'}`);
+    promptParts.push(`Experience: ${profile.experience || 'Not specified'}`);
+
+    promptParts.push(`
+  As an AI career coach, provide a JSON object with the following keys:
+   - summary: a concise explanation (3-5 sentences) why this career could be a fit for the user.
+   - skillGaps: an array of the top 5 skill gaps (short strings).
+   - roadmap: an array of 6 objects for each week: { week: 1..6, items: ["item1","item2"] }.
+   - nextActions: an array of 3 suggested next actions (short strings).
+   - targetLevel: one of "junior", "mid", or "senior".
+
+  Return ONLY valid JSON. If you must include text, embed it in the JSON fields. Ensure the JSON is parseable.`);
+
+    const prompt = promptParts.join('\n');
+
+    try {
+      // Deduplicate using Redis lock: if another process is generating the same explanation, wait for cache
+      const redis = (await import('@/lib/redis')).redisClient;
+      const lockKey = `${cacheKey}:lock`;
+      const gotLock = await redis.acquireLock(lockKey, 20_000);
+
+      if (!gotLock) {
+        // wait for cache to appear (another worker will generate)
+        const waited = await redis.waitForKey(cacheKey, 20_000);
+        if (waited) {
+          try { const parsed = JSON.parse(waited); return { explanation: parsed.summary || parsed.explanation || '', parsed } as any; } catch (e) { /* continue */ }
+        }
+      }
+
+      const result = await generateContent(prompt);
+      const structured = safeParseAIResponse(JSON.parse(result), ExplainSchema);
+
+      const explanation = typeof structured?.summary === 'string'
+        ? structured.summary
+        : 'AI-generated career guidance is available in structured format.';
+
+      try {
+        // cache to Redis
+        await redis.set(cacheKey, JSON.stringify(structured), 60 * 60 * 24); // 24h
+        // also set in-memory cache
+        try { this.explanationCache.set(`${userId}:${careerId}`, { explanation, parsed: structured, updatedAt: Date.now() }); } catch {}
+      } catch (err) {
+        console.warn('Failed to write explanation cache to Redis', err);
+      } finally {
+        // release lock if we acquired it
+        try { await redis.releaseLock(lockKey); } catch (e) { /* ignore */ }
+      }
+
+      return { explanation, parsed: structured } as any;
+    } catch (err) {
+      console.error('AI explainCareer error:', err);
+      // track fallback via telemetry
+      try { (await import('@/lib/aiTelemetry')).recordFallback(); } catch {}
+      const fallback = `The ${career.title} role typically requires specialized skills. Based on your profile, focus on core technical skills and projects to demonstrate capability.`;
+
+      // Attempt to build heuristic structured object when AI call fails
+      try {
+        const profileSkills = new Set((profile.skills || []).map((s) => String(s).toLowerCase()));
+        const mappedSkills: string[] = (career.skillMappings || []).map((m: any) => String(m.skill));
+        const skillGaps = mappedSkills.filter((s) => !profileSkills.has(String(s).toLowerCase())).slice(0, 5);
+
+        const roadmap: Array<{ week: number; items: string[] }> = [];
+        for (let i = 1; i <= 6; i++) {
+          const items: string[] = [];
+          if (skillGaps[i - 1]) items.push(`Learn ${skillGaps[i - 1]}`);
+          if (i <= 2) items.push('Foundational exercises and tutorials');
+          if (i === 3) items.push('Build a small project to apply skills');
+          if (i >= 4) items.push('Advanced practice and portfolio work');
+          roadmap.push({ week: i, items });
+        }
+
+        const nextActions = [
+          `Enroll in a short course on ${skillGaps[0] || 'core skills'}`,
+          'Build a small project and document it in your portfolio',
+          'Practice interview-style questions and system design basics',
+        ];
+
+        let targetLevel = 'junior';
+        try {
+          const years = parseInt(String(profile.experience || '').match(/\d+/g)?.[0] || '0', 10);
+          if (!isNaN(years) && years >= 5) targetLevel = 'senior';
+          else if (!isNaN(years) && years >= 2) targetLevel = 'mid';
+        } catch (e) {
+          targetLevel = 'junior';
+        }
+
+        const structured = {
+          summary: fallback,
+          skillGaps: skillGaps.length ? skillGaps : ['Fundamentals of the field'],
+          roadmap,
+          nextActions,
+          targetLevel,
+        };
+
+        try {
+          const cacheKey = `${userId}:${careerId}`;
+          this.explanationCache.set(cacheKey, { explanation: fallback, parsed: structured, updatedAt: Date.now() });
+        } catch (e) {
+          // ignore
+        }
+
+        return { explanation: fallback, parsed: structured } as any;
+      } catch (e) {
+        return { explanation: fallback };
+      }
+    }
   }
 
   private hasSignal(profile: RecommendationRequestProfile): boolean {

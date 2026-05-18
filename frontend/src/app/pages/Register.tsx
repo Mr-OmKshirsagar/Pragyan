@@ -13,6 +13,8 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,20 +112,38 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
 
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              trailingSlot={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              }
             />
 
             <Input
               label="Confirm Password"
-              type="password"
+              type={showConfirmPassword ? 'text' : 'password'}
               placeholder="Confirm your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              trailingSlot={
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  className="text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              }
             />
 
             <Button

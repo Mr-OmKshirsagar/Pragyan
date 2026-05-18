@@ -191,6 +191,112 @@ export const tailwindCssRoadmap: ExpandedRoadmap = {
   ],
 };
 
+export const accessibilityRoadmap: ExpandedRoadmap = {
+  id: 'web-accessibility',
+  title: 'Web Accessibility (a11y)',
+  category: 'frontend',
+  icon: '♿',
+  description: 'Learn to build inclusive, accessible web applications following WCAG and ARIA best practices.',
+  level: 'intermediate',
+  duration: '2 weeks',
+  totalTasks: 14,
+  estimatedHours: 20,
+  color: 'accent',
+  prerequisites: ['html-css-fundamentals'],
+  learningOutcomes: [
+    'Understand WCAG principles',
+    'Use semantic HTML for accessibility',
+    'Implement ARIA roles and attributes',
+    'Test accessibility with tools and screen readers',
+  ],
+  weeks: [
+    { week: 1, title: 'Foundations & Semantic HTML', topics: [{ title: 'Semantic Elements', description: 'Landmarks, headings, lists' }, { title: 'Forms & Labels', description: 'Accessible form controls' }], estimatedHours: 10 },
+    { week: 2, title: 'Advanced A11y & Testing', topics: [{ title: 'ARIA Patterns', description: 'Roles, states, live regions' }, { title: 'Testing', description: 'axe, Lighthouse, NVDA' }], estimatedHours: 10 },
+  ],
+};
+
+export const cssAnimationRoadmap: ExpandedRoadmap = {
+  id: 'css-animations-design-systems',
+  title: 'CSS Animations & Design Systems',
+  category: 'frontend',
+  icon: '🎬',
+  description: 'Create polished UIs with motion, component libraries, and scalable design tokens.',
+  level: 'intermediate',
+  duration: '3 weeks',
+  totalTasks: 21,
+  estimatedHours: 30,
+  color: 'primary',
+  prerequisites: ['tailwind-css-mastery'],
+  learningOutcomes: ['Design tokens', 'Motion and micro-interactions', 'Component libraries', 'Design system maintenance'],
+  weeks: [
+    { week: 1, title: 'Design Tokens & Tokens API', topics: [{ title: 'Variables & Theming', description: 'CSS variables and token strategies' }], estimatedHours: 10 },
+    { week: 2, title: 'Animations & Motion', topics: [{ title: 'Transitions & Keyframes', description: 'Micro-interactions and performance' }], estimatedHours: 10 },
+    { week: 3, title: 'Component Libraries', topics: [{ title: 'Reusable Components', description: 'Accessibility and theming' }], estimatedHours: 10 },
+  ],
+};
+
+export const frontendTestingRoadmap: ExpandedRoadmap = {
+  id: 'frontend-testing',
+  title: 'Frontend Testing & QA',
+  category: 'frontend',
+  icon: '🧪',
+  description: 'Learn unit, integration, and E2E testing for modern frontend apps.',
+  level: 'intermediate',
+  duration: '3 weeks',
+  totalTasks: 21,
+  estimatedHours: 30,
+  color: 'secondary',
+  prerequisites: ['react-advanced'],
+  learningOutcomes: ['Unit testing with Jest', 'React Testing Library', 'E2E with Playwright or Cypress', 'Test strategy'],
+  weeks: [
+    { week: 1, title: 'Unit Tests', topics: [{ title: 'Jest Basics', description: 'Mocks, assertions' }], estimatedHours: 10 },
+    { week: 2, title: 'Integration Testing', topics: [{ title: 'React Testing Library', description: 'Component testing patterns' }], estimatedHours: 10 },
+    { week: 3, title: 'E2E & CI', topics: [{ title: 'Playwright/Cypress', description: 'End-to-end testing and CI integration' }], estimatedHours: 10 },
+  ],
+};
+
+export const webPerfRoadmap: ExpandedRoadmap = {
+  id: 'web-performance-optimization',
+  title: 'Web Performance Optimization',
+  category: 'frontend',
+  icon: '⚡',
+  description: 'Techniques to measure and optimize frontend performance for fast user experiences.',
+  level: 'advanced',
+  duration: '2 weeks',
+  totalTasks: 14,
+  estimatedHours: 20,
+  color: 'accent',
+  prerequisites: ['react-advanced'],
+  learningOutcomes: ['Critical rendering path', 'Code splitting', 'Image & asset optimization', 'Performance budgets'],
+  weeks: [
+    { week: 1, title: 'Metrics & Tooling', topics: [{ title: 'Lighthouse & Web Vitals', description: 'Measure performance' }], estimatedHours: 10 },
+    { week: 2, title: 'Optimization Techniques', topics: [{ title: 'Code Splitting', description: 'Lazy loading and caching' }], estimatedHours: 10 },
+  ],
+};
+
+export const dsAlgoRoadmap: ExpandedRoadmap = {
+  id: 'data-structures-algorithms',
+  title: 'Data Structures & Algorithms',
+  category: 'programming',
+  icon: '📐',
+  description: 'Core DSA skills for interviews and efficient problem solving.',
+  level: 'advanced',
+  duration: '6 weeks',
+  totalTasks: 42,
+  estimatedHours: 60,
+  color: 'primary',
+  prerequisites: ['javascript-fundamentals-expanded'],
+  learningOutcomes: ['Arrays, linked lists, trees', 'Sorting & searching', 'Graph algorithms', 'Complexity analysis'],
+  weeks: [
+    { week: 1, title: 'Arrays & Strings', topics: [{ title: 'Two pointers', description: 'Sliding window techniques' }], estimatedHours: 10 },
+    { week: 2, title: 'Linked Lists & Stacks', topics: [{ title: 'Linked list operations', description: 'Reversal, cycle detection' }], estimatedHours: 10 },
+    { week: 3, title: 'Trees', topics: [{ title: 'Binary trees & traversals', description: 'DFS, BFS' }], estimatedHours: 10 },
+    { week: 4, title: 'Graphs', topics: [{ title: 'BFS/DFS, shortest paths', description: 'Dijkstra, topological sort' }], estimatedHours: 10 },
+    { week: 5, title: 'Sorting & Searching', topics: [{ title: 'Quick sort, merge sort', description: 'Divide and conquer' }], estimatedHours: 10 },
+    { week: 6, title: 'Complexity & Interview Prep', topics: [{ title: 'Big O & Patterns', description: 'Practice problems and strategies' }], estimatedHours: 10 },
+  ],
+};
+
 // ============ BACKEND DEVELOPMENT ROADMAPS ============
 
 export const nodeJsAdvancedRoadmap: ExpandedRoadmap = {
@@ -757,6 +863,11 @@ export const allExpandedRoadmaps: ExpandedRoadmap[] = [
   nextJsRoadmap,
   reduxRoadmap,
   tailwindCssRoadmap,
+  accessibilityRoadmap,
+  cssAnimationRoadmap,
+  frontendTestingRoadmap,
+  webPerfRoadmap,
+  dsAlgoRoadmap,
   nodeJsAdvancedRoadmap,
   restApisRoadmap,
   authenticationRoadmap,

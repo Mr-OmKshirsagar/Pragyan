@@ -2,6 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { careerMatchingEngine } from '@/services/career-matching';
+import { enhanceAndCombineScores } from '@/ai/scoringEngine';
+import { generateQuestionsWithAI } from '@/ai/questionGenerator';
 import { MongoClient } from 'mongodb';
 
 const MONGO_URL = process.env.DATABASE_URL || 'mongodb://localhost:27017';
@@ -198,6 +200,15 @@ export class AssessmentService {
   async getQuestions() {
     // Try to generate dynamic questions from dataset
     const dynamicQuestions = await this.generateDynamicQuestions();
+
+    // Enhance phrasing with GPT-driven question generator (non-blocking fallback)
+    try {
+      const enhanced = await generateQuestionsWithAI(dynamicQuestions as any);
+      if (enhanced && enhanced.length) return enhanced;
+    } catch (err) {
+      // fall back to dataset-generated questions
+    }
+
     return dynamicQuestions;
   }
 
@@ -216,7 +227,17 @@ export class AssessmentService {
       console.error('Career matching failed:', error);
     }
 
+    // Enhance local matches with a lightweight GPT layer for explanations and small adjustments
+    const combined = await enhanceAndCombineScores(assessmentAnswers, matches as any[]).catch((e) => {
+      console.error('Scoring enhancement failed:', e);
+      return null;
+    });
+
     const result = this.buildAssessmentSummary(answers, matches, assessmentAnswers);
+    // Attach combinedMatches if available
+    if (combined) {
+      (result as any).combinedMatches = combined;
+    }
 
     const assessmentResult = await prisma.assessmentResult.create({
       data: {
@@ -262,6 +283,13 @@ export class AssessmentService {
       totalAnswers: Object.keys(answers).length,
       generatedAt: new Date().toISOString(),
     };
+    // Attach combinedMatches to analysis when available
+    try {
+      const combined = await enhanceAndCombineScores(assessmentAnswers, matches as any[]).catch(() => null);
+      if (combined) (analysis as any).combinedMatches = combined;
+    } catch (e) {
+      // ignore
+    }
     const selectedOptions = Object.values(answers).map((value) => String(value));
 
     const session = await prisma.assessmentSession.create({
