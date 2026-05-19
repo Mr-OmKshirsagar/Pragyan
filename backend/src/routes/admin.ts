@@ -8,6 +8,7 @@ router.use(authenticate, authorize('ADMIN'));
 
 router.get('/dashboard', adminController.getAdminDashboard);
 router.get('/users', adminController.getUsers);
+router.get('/current-users', adminController.getCurrentUsers);
 router.patch('/users/:id/role', adminController.updateUserRole);
 router.get('/roadmaps', adminController.getRoadmapStats);
 router.get('/resources', adminController.getResources);

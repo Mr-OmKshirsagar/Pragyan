@@ -1,11 +1,34 @@
 import { Request, Response } from 'express';
 import { prisma } from '@/lib/prisma';
+import { MongoClient } from 'mongodb';
 import { asyncHandler } from '@/middleware/errorHandler';
 import { sendError, sendSuccess } from '@/utils/response';
+
+const mongoUrl = process.env.DATABASE_URL;
+const mongoDbName = process.env.DB_NAME || 'Pragyan';
 
 export const getAdminDashboard = asyncHandler(async (_req: Request, res: Response) => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  let currentUserCount = 0;
+  let activeCurrentUserCount = 0;
+  let adminUserCount = 0;
+
+  if (mongoUrl) {
+    const client = new MongoClient(mongoUrl);
+    try {
+      await client.connect();
+      const db = client.db(mongoDbName);
+      const currentUsersCollection = db.collection('CurrentUser');
+      const adminUsersCollection = db.collection('AdminUser');
+      currentUserCount = await currentUsersCollection.countDocuments();
+      activeCurrentUserCount = await currentUsersCollection.countDocuments({ active: true });
+      adminUserCount = await adminUsersCollection.countDocuments();
+    } finally {
+      await client.close();
+    }
+  }
 
   const [
     totalUsers,
@@ -26,6 +49,9 @@ export const getAdminDashboard = asyncHandler(async (_req: Request, res: Respons
   return sendSuccess(res, {
     totalUsers,
     activeUsers,
+    currentUserCount,
+    activeCurrentUserCount,
+    adminUserCount,
     roadmapCount,
     skillCount,
     assessmentCount,
@@ -52,6 +78,29 @@ export const getUsers = asyncHandler(async (_req: Request, res: Response) => {
   return sendSuccess(res, users, 200, 'Users fetched');
 });
 
+export const getCurrentUsers = asyncHandler(async (_req: Request, res: Response) => {
+  if (!mongoUrl) {
+    return sendError(res, 500, 'DATABASE_URL is not configured');
+  }
+
+  const client = new MongoClient(mongoUrl);
+  try {
+    await client.connect();
+
+    const currentUsers = await client
+      .db(mongoDbName)
+      .collection('CurrentUser')
+      .find({})
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .toArray();
+
+    return sendSuccess(res, currentUsers, 200, 'Current users fetched');
+  } finally {
+    await client.close();
+  }
+});
+
 export const updateUserRole = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { role } = req.body as { role?: string };
@@ -71,6 +120,42 @@ export const updateUserRole = asyncHandler(async (req: Request, res: Response) =
       updatedAt: true,
     },
   });
+
+  if (mongoUrl) {
+    const client = new MongoClient(mongoUrl);
+    try {
+      await client.connect();
+      const db = client.db(mongoDbName);
+      const adminUsersCollection = db.collection('AdminUser');
+      const objectId = new (await import('mongodb')).ObjectId(id);
+      const currentUser = await db.collection('User').findOne({ _id: objectId });
+
+      if (role === 'ADMIN' && currentUser) {
+        await adminUsersCollection.updateOne(
+          { _id: objectId },
+          {
+            $set: {
+              userId: objectId,
+              email: currentUser.email,
+              fullName: currentUser.fullName,
+              role: currentUser.role,
+              xp: currentUser.xp ?? 0,
+              streak: currentUser.streak ?? 0,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+      } else {
+        await adminUsersCollection.deleteOne({ _id: objectId });
+      }
+    } finally {
+      await client.close();
+    }
+  }
 
   return sendSuccess(res, user, 200, 'User role updated');
 });

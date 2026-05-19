@@ -30,6 +30,76 @@ const userProfileSelect = {
 } as const;
 
 export class AuthService {
+  private async upsertCurrentUserSnapshot(user: {
+    _id: ObjectId;
+    email: string;
+    fullName: string;
+    role: string;
+    age: number | null;
+    location: string | null;
+    phone: string | null;
+    linkedin: string | null;
+    skills: string[];
+    interests: string[];
+    preferences: string[];
+    experience: string | null;
+    experienceType: string | null;
+    education: string | null;
+    educationEntries: unknown;
+    skillLevel: string | null;
+    xp: number;
+    streak?: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }, active = true, lastLoginAt?: Date) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is required');
+    }
+
+    const client = new MongoClient(process.env.DATABASE_URL);
+
+    try {
+      await client.connect();
+      const db = client.db('Pragyan');
+      const currentUsersCollection = db.collection('CurrentUser');
+
+      await currentUsersCollection.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            userId: user._id,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            age: user.age,
+            location: user.location,
+            phone: user.phone,
+            linkedin: user.linkedin,
+            skills: user.skills,
+            interests: user.interests,
+            preferences: user.preferences,
+            experience: user.experience,
+            experienceType: user.experienceType,
+            education: user.education,
+            educationEntries: user.educationEntries,
+            skillLevel: user.skillLevel,
+            xp: user.xp,
+            streak: user.streak ?? 0,
+            active,
+            lastLoginAt: lastLoginAt ?? null,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+    } finally {
+      await client.close();
+    }
+  }
+
   async register(input: RegisterInput) {
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -89,6 +159,8 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         createdAt: now,
       });
+
+      await this.upsertCurrentUserSnapshot(userDoc, true, now);
 
       await client.close();
 
@@ -172,6 +244,33 @@ export class AuthService {
         createdAt: new Date(),
       });
 
+      await this.upsertCurrentUserSnapshot(
+        {
+          _id: new ObjectId(user.id),
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          age: user.age ?? null,
+          location: user.location ?? null,
+          phone: user.phone ?? null,
+          linkedin: user.linkedin ?? null,
+          skills: Array.isArray(user.skills) ? user.skills : [],
+          interests: Array.isArray(user.interests) ? user.interests : [],
+          preferences: Array.isArray(user.preferences) ? user.preferences : [],
+          experience: user.experience ?? null,
+          experienceType: user.experienceType ?? null,
+          education: user.education ?? null,
+          educationEntries: user.educationEntries ?? [],
+          skillLevel: user.skillLevel ?? null,
+          xp: user.xp ?? 0,
+          streak: user.streak ?? 0,
+          createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+          updatedAt: new Date(),
+        },
+        true,
+        new Date()
+      );
+
       await client.close();
     } catch (error: any) {
       console.error('Failed to save refresh token:', error);
@@ -251,6 +350,8 @@ export class AuthService {
         throw new NotFoundError('User not found');
       }
 
+      await this.upsertCurrentUserSnapshot(user as any, true, new Date());
+
       return {
         id: String(user._id),
         fullName: user.fullName,
@@ -318,7 +419,22 @@ export class AuthService {
       await client.connect();
       const db = client.db('Pragyan');
       const refreshTokenCollection = db.collection('RefreshToken');
+      const currentUsersCollection = db.collection('CurrentUser');
+
+      const tokenPayload = verifyRefreshToken(refreshToken);
       
+      if (tokenPayload?.id) {
+        await currentUsersCollection.updateOne(
+          { _id: new ObjectId(tokenPayload.id) },
+          {
+            $set: {
+              active: false,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
+
       await refreshTokenCollection.deleteMany({
         token: refreshToken,
       });

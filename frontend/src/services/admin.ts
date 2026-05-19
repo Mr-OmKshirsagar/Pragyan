@@ -3,6 +3,9 @@ import { apiFetch } from './api';
 export interface AdminStats {
   totalUsers: number;
   activeUsers: number;
+  currentUserCount: number;
+  activeCurrentUserCount: number;
+  adminUserCount: number;
   roadmapCount: number;
   skillCount: number;
   assessmentCount: number;
