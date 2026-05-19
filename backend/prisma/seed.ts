@@ -1,7 +1,42 @@
-import { PrismaClient } from '@prisma/client';
+import { MongoClient, ObjectId } from 'mongodb';
 import { hashPassword } from '../src/utils/password';
+import { generateRefreshToken } from '../src/utils/jwt';
 
-const prisma = new PrismaClient();
+const mongoUrl = process.env.DATABASE_URL;
+const mongoDbName = process.env.DB_NAME || 'Pragyan';
+
+async function clearSeedCollections() {
+  if (!mongoUrl) {
+    throw new Error('DATABASE_URL is required for seed cleanup');
+  }
+
+  const client = new MongoClient(mongoUrl);
+  try {
+    await client.connect();
+    const db = client.db(mongoDbName);
+    const collections = [
+      'Resource',
+      'DailyTask',
+      'Skill',
+      'RefreshToken',
+      'CurrentUser',
+      'AdminUser',
+      'UserRoadmap',
+      'TaskProgress',
+      'AssessmentAnswer',
+      'AssessmentQuestion',
+      'Assessment',
+      'CareerMatch',
+      'User',
+    ];
+
+    for (const collectionName of collections) {
+      await db.collection(collectionName).deleteMany({});
+    }
+  } finally {
+    await client.close();
+  }
+}
 
 const skillSeeds = [
   {
@@ -218,53 +253,167 @@ const skillSeeds = [
 ];
 
 async function main() {
-  console.log('Starting Prisma seed...');
+  console.log('Starting MongoDB seed...');
 
-  await prisma.resource.deleteMany();
-  await prisma.dailyTask.deleteMany();
-  await prisma.skill.deleteMany();
-  await prisma.refreshToken.deleteMany();
-  await prisma.userRoadmap.deleteMany();
-  await prisma.taskProgress.deleteMany();
-  await prisma.assessmentAnswer.deleteMany();
-  await prisma.assessmentQuestion.deleteMany();
-  await prisma.assessment.deleteMany();
-  await prisma.careerMatch.deleteMany();
-  await prisma.user.deleteMany();
+  await clearSeedCollections();
 
-  const adminPassword = await hashPassword('admin123');
-  await prisma.user.create({
-    data: {
-      fullName: 'Admin User',
-      email: 'admin@pragyan.com',
-      password: adminPassword,
-      role: 'ADMIN',
-      skills: ['HTML & CSS Fundamentals', 'JavaScript Fundamentals'],
-      interests: ['Web Development', 'Backend Development'],
-      skillLevel: 'Advanced',
-      xp: 1000,
-    },
-  });
-
-  const userPassword = await hashPassword('user123');
-  for (let index = 1; index <= 3; index++) {
-    await prisma.user.create({
-      data: {
-        fullName: `Sample User ${index}`,
-        email: `user${index}@pragyan.com`,
-        password: userPassword,
-        role: 'USER',
-        skills: [],
-        interests: ['Web Development', 'AI/ML'],
-        skillLevel: 'Beginner',
-        xp: Math.round(Math.random() * 500),
-      },
-    });
+  if (!mongoUrl) {
+    throw new Error('DATABASE_URL is required for seeding');
   }
 
-  for (const skillSeed of skillSeeds) {
-    await prisma.skill.create({
-      data: {
+  const client = new MongoClient(mongoUrl);
+  await client.connect();
+
+  try {
+    const db = client.db(mongoDbName);
+    const now = new Date();
+
+    const usersCollection = db.collection('User');
+    const currentUsersCollection = db.collection('CurrentUser');
+    const adminUsersCollection = db.collection('AdminUser');
+    const skillsCollection = db.collection('Skill');
+    const dailyTasksCollection = db.collection('DailyTask');
+    const resourcesCollection = db.collection('Resource');
+    const assessmentCollection = db.collection('Assessment');
+    const assessmentQuestionsCollection = db.collection('AssessmentQuestion');
+    const careerMatchesCollection = db.collection('CareerMatch');
+
+    const adminId = new ObjectId();
+    const sampleUserIds = [new ObjectId(), new ObjectId(), new ObjectId()];
+    const adminPassword = await hashPassword('admin123');
+    const userPassword = await hashPassword('user123');
+
+    const users = [
+      {
+        _id: adminId,
+        fullName: 'Admin User',
+        email: 'admin@pragyan.com',
+        password: adminPassword,
+        role: 'ADMIN',
+        age: null,
+        location: null,
+        phone: null,
+        linkedin: null,
+        skills: ['HTML & CSS Fundamentals', 'JavaScript Fundamentals'],
+        interests: ['Web Development', 'Backend Development'],
+        preferences: [],
+        experience: null,
+        experienceType: 'fresher',
+        education: null,
+        educationEntries: [],
+        skillLevel: 'Advanced',
+        xp: 1000,
+        streak: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      ...sampleUserIds.map((id, index) => ({
+        _id: id,
+        fullName: `Sample User ${index + 1}`,
+        email: `user${index + 1}@pragyan.com`,
+        password: userPassword,
+        role: 'USER',
+        age: null,
+        location: null,
+        phone: null,
+        linkedin: null,
+        skills: [],
+        interests: ['Web Development', 'AI/ML'],
+        preferences: [],
+        experience: null,
+        experienceType: 'fresher',
+        education: null,
+        educationEntries: [],
+        skillLevel: 'Beginner',
+        xp: Math.round(Math.random() * 500),
+        streak: 0,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    ];
+
+    await usersCollection.insertMany(users as any[]);
+
+    await currentUsersCollection.insertMany(
+      users.map((user) => ({
+        _id: user._id,
+        userId: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        age: user.age,
+        location: user.location,
+        phone: user.phone,
+        linkedin: user.linkedin,
+        skills: user.skills,
+        interests: user.interests,
+        preferences: user.preferences,
+        experience: user.experience,
+        experienceType: user.experienceType,
+        education: user.education,
+        educationEntries: user.educationEntries,
+        skillLevel: user.skillLevel,
+        xp: user.xp,
+        streak: user.streak,
+        active: true,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })) as any[]
+    );
+
+    await adminUsersCollection.insertMany([
+      {
+        _id: adminId,
+        userId: adminId,
+        email: 'admin@pragyan.com',
+        fullName: 'Admin User',
+        role: 'ADMIN',
+        xp: 1000,
+        streak: 0,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ] as any[]);
+
+    for (const skillSeed of skillSeeds) {
+      const skillId = new ObjectId();
+      const taskDocuments: Array<Record<string, unknown>> = [];
+      const resourceDocuments: Array<Record<string, unknown>> = [];
+
+      for (const task of skillSeed.dailyTasks) {
+        const taskId = new ObjectId();
+        taskDocuments.push({
+          _id: taskId,
+          skillId,
+          taskNumber: task.taskNumber,
+          title: task.title,
+          description: task.description,
+          estimatedTime: task.estimatedTime,
+          subtasks: task.subtasks,
+          xp: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        for (const resource of task.resources) {
+          resourceDocuments.push({
+            _id: new ObjectId(),
+            taskId,
+            title: resource.title,
+            url: resource.url,
+            description: resource.description,
+            platform: resource.platform,
+            type: resource.type,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+
+      await skillsCollection.insertOne({
+        _id: skillId,
         skillName: skillSeed.skillName,
         skillCategory: skillSeed.skillCategory,
         difficulty: skillSeed.difficulty,
@@ -276,36 +425,29 @@ async function main() {
         prerequisites: skillSeed.prerequisites,
         relatedSkills: skillSeed.relatedSkills,
         totalDays: skillSeed.totalDays,
-        dailyTasks: {
-          create: skillSeed.dailyTasks.map((task) => ({
-            taskNumber: task.taskNumber,
-            title: task.title,
-            description: task.description,
-            estimatedTime: task.estimatedTime,
-            subtasks: task.subtasks,
-            resources: {
-              create: task.resources.map((resource) => ({
-                title: resource.title,
-                url: resource.url,
-                description: resource.description,
-                platform: resource.platform,
-                type: resource.type,
-              })),
-            },
-          })),
-        },
-      },
-    });
-  }
+        createdAt: now,
+        updatedAt: now,
+      });
 
-  const assessment = await prisma.assessment.create({
-    data: {
+      if (taskDocuments.length > 0) {
+        await dailyTasksCollection.insertMany(taskDocuments as any[]);
+      }
+
+      if (resourceDocuments.length > 0) {
+        await resourcesCollection.insertMany(resourceDocuments as any[]);
+      }
+    }
+
+    const assessmentId = new ObjectId();
+    await assessmentCollection.insertOne({
+      _id: assessmentId,
       title: 'Career Direction Assessment',
       description: 'Short assessment to understand your current interests and goals.',
-    },
-  });
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  const assessmentQuestions = [
+    const assessmentQuestions = [
     {
       questionText: 'Do you enjoy building user interfaces?',
       options: ['Yes', 'No', 'Maybe'],
@@ -333,29 +475,22 @@ async function main() {
     },
   ];
 
-  for (const question of assessmentQuestions) {
-    await prisma.assessmentQuestion.create({
-      data: {
-        assessmentId: assessment.id,
+    await assessmentQuestionsCollection.insertMany(
+      assessmentQuestions.map((question) => ({
+        _id: new ObjectId(),
+        assessmentId,
         questionText: question.questionText,
         options: question.options,
         category: question.category,
-      },
-    });
-  }
+        createdAt: now,
+        updatedAt: now,
+      })) as any[]
+    );
 
-  const sampleUser = await prisma.user.findUnique({
-    where: { email: 'user1@pragyan.com' },
-  });
-
-  const adminUser = await prisma.user.findUnique({
-    where: { email: 'admin@pragyan.com' },
-  });
-
-  if (sampleUser && adminUser) {
-    await prisma.careerMatch.create({
-      data: {
-        userId: sampleUser.id,
+    await careerMatchesCollection.insertMany([
+      {
+        _id: new ObjectId(),
+        userId: sampleUserIds[0],
         careerTitle: 'Frontend Developer',
         company: 'Pragyan Labs',
         description: 'Strong fit for frontend roles focused on React and design systems.',
@@ -364,12 +499,12 @@ async function main() {
         growthAreas: ['Testing', 'Performance optimization'],
         salaryRange: '$70k - $110k',
         jobMarketDemand: 8,
+        createdAt: now,
+        updatedAt: now,
       },
-    });
-
-    await prisma.careerMatch.create({
-      data: {
-        userId: adminUser.id,
+      {
+        _id: new ObjectId(),
+        userId: adminId,
         careerTitle: 'Full Stack Engineer',
         company: 'Pragyan Labs',
         description: 'Experienced profile with backend, frontend, and platform skills.',
@@ -378,11 +513,17 @@ async function main() {
         growthAreas: ['Leadership', 'Architecture'],
         salaryRange: '$110k - $150k',
         jobMarketDemand: 9,
+        createdAt: now,
+        updatedAt: now,
       },
-    });
-  }
+    ] as any[]);
 
-  console.log(`Seeded ${skillSeeds.length} skill roadmaps, demo users, assessment data, and career matches.`);
+    const seededUsers = await usersCollection.countDocuments();
+    console.log(`Seeded ${skillSeeds.length} skill roadmaps, demo users, assessment data, and career matches.`);
+    console.log(`User documents in MongoDB: ${seededUsers}`);
+  } finally {
+    await client.close();
+  }
 }
 
 main()
@@ -391,5 +532,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    process.exit(0);
   });

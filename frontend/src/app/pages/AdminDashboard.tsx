@@ -13,6 +13,7 @@ type AdminTab = 'overview' | 'users' | 'assessments';
 const STAT_CARDS = [
   { key: 'totalUsers', label: 'Total Users', color: 'text-indigo-300', icon: '👥', bg: 'from-indigo-500/10 to-indigo-500/5' },
   { key: 'activeUsers', label: 'Active (7d)', color: 'text-green-300', icon: '🟢', bg: 'from-green-500/10 to-green-500/5' },
+  { key: 'adminUserCount', label: 'Admins', color: 'text-fuchsia-300', icon: '🛡️', bg: 'from-fuchsia-500/10 to-fuchsia-500/5' },
   { key: 'roadmapCount', label: 'Roadmaps', color: 'text-cyan-300', icon: '🗺️', bg: 'from-cyan-500/10 to-cyan-500/5' },
   { key: 'skillCount', label: 'Skills', color: 'text-purple-300', icon: '⚡', bg: 'from-purple-500/10 to-purple-500/5' },
   { key: 'assessmentCount', label: 'Assessments', color: 'text-amber-300', icon: '📝', bg: 'from-amber-500/10 to-amber-500/5' },
@@ -377,6 +378,7 @@ export function AdminDashboard({ onBack }: AdminDashboardProps) {
             )}
           </div>
         )}
+
       </div>
     </div>
   );

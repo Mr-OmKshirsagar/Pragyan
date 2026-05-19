@@ -52,7 +52,7 @@ npm install
 cp .env.example .env
 
 # Configure your DATABASE_URL in .env
-# Example: mongodb://user:password@localhost:27017/pragyan_db
+# Example (Atlas): mongodb+srv://user:password@cluster.mongodb.net/pragyan_db?retryWrites=true&w=majority
 
 # Generate Prisma client
 npm run prisma:generate
@@ -301,7 +301,7 @@ curl -X POST http://localhost:5000/api/auth/refresh-token \\
 ```
 PORT=5000
 NODE_ENV=development
-DATABASE_URL=mongodb://user:password@localhost:27017/pragyan_db
+DATABASE_URL=mongodb+srv://user:password@cluster.mongodb.net/pragyan_db?retryWrites=true&w=majority
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRY=7d
 JWT_REFRESH_SECRET=your_jwt_refresh_secret_key

@@ -91,7 +91,7 @@ export default function App() {
         }
 
         if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'register') {
-          navigateTo('dashboard');
+          navigateTo(profile?.role === 'ADMIN' ? 'admin' : 'dashboard');
         }
       } catch {
         localStorage.removeItem('accessToken');
