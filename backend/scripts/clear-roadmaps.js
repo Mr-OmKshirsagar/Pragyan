@@ -4,7 +4,10 @@
 
 const { MongoClient } = require('mongodb');
 
-const MONGO_URL = process.env.DATABASE_URL || 'mongodb://localhost:27017';
+const MONGO_URL = process.env.DATABASE_URL;
+if (!MONGO_URL) {
+  throw new Error('DATABASE_URL must point to MongoDB Atlas');
+}
 const DB_NAME = 'Pragyan';
 
 async function clearRoadmaps() {

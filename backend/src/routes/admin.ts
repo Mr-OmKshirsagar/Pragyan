@@ -16,5 +16,15 @@ router.post('/resources', adminController.createResource);
 router.put('/resources/:id', adminController.updateResource);
 router.delete('/resources/:id', adminController.deleteResource);
 router.get('/assessments', adminController.getAssessmentAnalytics);
+router.get('/assessments/completion-rates', adminController.getAssessmentCompletionRates);
+
+router.post('/assessment-questions', adminController.createAssessmentQuestion);
+router.get('/adaptive/decision-tree', adminController.getDecisionTree);
+router.put('/adaptive/decision-tree', adminController.upsertDecisionTree);
+router.get('/adaptive/weights', adminController.getWeights);
+router.put('/adaptive/weights', adminController.upsertWeights);
+
+router.post('/careers', adminController.createCareer);
+router.put('/careers/:id/weights', adminController.updateCareerWeights);
 
 export default router;

@@ -3,6 +3,7 @@ import redisClient from '@/lib/redis';
 import { rateLimiter as inMemoryLimiter } from './rateLimiter';
 
 const DEFAULT_LIMIT = 20; // per window
+const DEFAULT_LIMIT_AUTH = 60; // higher limit for authenticated users
 const WINDOW_SECONDS = 60; // 1 minute
 
 export async function redisRateLimiter(req: Request, res: Response, next: NextFunction) {
@@ -14,7 +15,7 @@ export async function redisRateLimiter(req: Request, res: Response, next: NextFu
 
     const userId = (req as any).user?.id;
     const key = userId ? `rl:user:${userId}` : `rl:ip:${req.ip}`;
-    const limit = Number(process.env.ASSESSMENT_RATE_LIMIT || DEFAULT_LIMIT);
+    const limit = userId ? Number(process.env.ASSESSMENT_RATE_LIMIT_AUTH || DEFAULT_LIMIT_AUTH) : Number(process.env.ASSESSMENT_RATE_LIMIT || DEFAULT_LIMIT);
 
     const current = await redisClient.incr(key);
     if (current === 1) {
