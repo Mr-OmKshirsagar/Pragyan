@@ -44,6 +44,13 @@ model User {
   taskProgress        TaskProgress[]
   careerMatches       CareerMatch[]
   jobApplications     JobApplication[]
+  // AI Memory & Personalization relations
+  aiMemoryProfiles    AIMemoryProfile[]
+  recommendationHistories RecommendationHistory[]
+  roadmapMutations    RoadmapMutation[]
+  personalityProfiles PersonalityProfile[]
+  learningVelocities  LearningVelocity[]
+  decisionSnapshots    DecisionSnapshot[]
   
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -476,7 +483,7 @@ model Job {
   company         String
   location        String
   description     String
-  salary          String?
+  salary          Json?
   skills          String[]
   applyLink       String
   source          String
@@ -498,4 +505,93 @@ model JobApplication {
   @@unique([userId, jobId])
   @@index([userId])
   @@index([jobId])
+}
+
+// ============ AI MEMORY & PERSONALIZATION MODELS ============
+
+model AIMemoryProfile {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Free-form profile JSON storing aggregated signals, e.g. strengths, weaknesses, preferences
+  profileData       Json
+  // Compact metrics for quick queries
+  compositeScore    Float?   
+  xp                Float    @default(0)
+  lastUpdated       DateTime @default(now())
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model RecommendationHistory {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Stores the recommended item and metadata
+  recommendation    Json
+  reason            String?
+  score             Float?
+  source            String?  // e.g., 'assessment', 'ai-engine', 'manual'
+
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RoadmapMutation {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Mutation record describing the change: branching, milestone added, pacing adjusted
+  mutation          Json
+  reason            String?
+  appliedAt         DateTime @default(now())
+
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PersonalityProfile {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile           Json     // e.g., mentorType, tone, affinity
+  confidence        Float?   
+  lastEvaluatedAt   DateTime @default(now())
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model LearningVelocity {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  windowStart       DateTime
+  windowEnd         DateTime
+  metrics           Json     // e.g., tasksCompleted, xpEarned, avgTimePerTask
+
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Persisted snapshots of adaptive decision evaluations for longitudinal analysis
+model DecisionSnapshot {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshot          Json     // full engine output (evaluated list, meta)
+  topItems          String[] // cached top career titles
+  meta              Json?    // lightweight meta like avgVelocity, xp, traitCount
+
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
 }

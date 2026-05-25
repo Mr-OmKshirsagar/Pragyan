@@ -2,9 +2,10 @@ import { config } from '@/config/env';
 
 import { AIProviderAdapter, AIProviderOptions } from './AIProviderBase';
 import { GeminiProvider } from './GeminiProvider';
+import { GroqProvider } from './GroqProvider';
 import { LocalAIProvider } from './LocalAIProvider';
 
-type ProviderMode = 'local' | 'gemini';
+type ProviderMode = 'local' | 'gemini' | 'groq';
 
 class AIProviderFacade implements AIProviderAdapter {
   private provider: AIProviderAdapter;
@@ -17,16 +18,29 @@ class AIProviderFacade implements AIProviderAdapter {
 
   private resolveMode(): ProviderMode {
     const configured = String(config.ai.provider || process.env.AI_PROVIDER || '').toLowerCase();
-    return configured === 'local' ? 'local' : 'gemini';
+    if (configured === 'local' || configured === 'groq' || configured === 'gemini') {
+      return configured;
+    }
+    return 'gemini';
   }
 
   private createProvider(mode: ProviderMode): AIProviderAdapter {
-    return mode === 'local' ? new LocalAIProvider() : new GeminiProvider();
+    if (mode === 'local') return new LocalAIProvider();
+    if (mode === 'groq') return new GroqProvider();
+    return new GeminiProvider();
+  }
+
+  private getFallbackProviders(): AIProviderAdapter[] {
+    return [new GroqProvider(), new LocalAIProvider()];
   }
 
   setProvider(provider: AIProviderAdapter): void {
     this.provider = provider;
-    this.mode = provider.getProviderName() === 'local' ? 'local' : 'gemini';
+    this.mode = provider.getProviderName() === 'local'
+      ? 'local'
+      : provider.getProviderName() === 'groq'
+        ? 'groq'
+        : 'gemini';
   }
 
   getProviderName(): string {
@@ -46,11 +60,45 @@ class AIProviderFacade implements AIProviderAdapter {
   }
 
   async generateText(prompt: string, opts?: AIProviderOptions): Promise<string> {
-    return this.provider.generateText(prompt, opts);
+    try {
+      return await this.provider.generateText(prompt, opts);
+    } catch (error) {
+      for (const fallback of this.getFallbackProviders()) {
+        if (fallback.getProviderName() === this.provider.getProviderName()) {
+          continue;
+        }
+        try {
+          this.provider = fallback;
+          this.mode = fallback.getProviderName() as ProviderMode;
+          return await fallback.generateText(prompt, opts);
+        } catch (fallbackError) {
+          continue;
+        }
+      }
+
+      throw error;
+    }
   }
 
   async generateJsonRaw(prompt: string, opts?: AIProviderOptions): Promise<string> {
-    return this.provider.generateJsonRaw(prompt, opts);
+    try {
+      return await this.provider.generateJsonRaw(prompt, opts);
+    } catch (error) {
+      for (const fallback of this.getFallbackProviders()) {
+        if (fallback.getProviderName() === this.provider.getProviderName()) {
+          continue;
+        }
+        try {
+          this.provider = fallback;
+          this.mode = fallback.getProviderName() as ProviderMode;
+          return await fallback.generateJsonRaw(prompt, opts);
+        } catch (fallbackError) {
+          continue;
+        }
+      }
+
+      throw error;
+    }
   }
 
   async generateJsonValidated<T>(prompt: string, validateFn: (raw: unknown) => T, opts?: AIProviderOptions): Promise<T> {

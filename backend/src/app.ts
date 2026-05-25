@@ -19,6 +19,7 @@ import adminRoutes from '@/routes/admin';
 import skillRoutes from '@/routes/skill';
 import taskRoutes from '@/routes/task';
 import careerMatchingRoutes from '@/routes/career-matching';
+import careersRoutes from '@/routes/careers';
 import jobsRoutes from '@/routes/jobs';
 import { redisRateLimiter } from '@/middleware/redisRateLimiter';
 
@@ -90,6 +91,7 @@ app.use('/api/assessment', redisRateLimiter, assessmentRoutes);
 app.use('/api/ai', redisRateLimiter, aiRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/career-matching', careerMatchingRoutes);
+app.use('/api/careers', careersRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/admin', adminRoutes);
 

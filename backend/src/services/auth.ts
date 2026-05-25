@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { MongoClient, ObjectId } from 'mongodb';
+import { getMongoUrl } from '@/config/mongo';
 import { hashPassword, comparePasswords } from '@/utils/password';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt';
 import { ConflictError, UnauthorizedError, NotFoundError, BadRequestError } from '@/utils/errors';
@@ -52,11 +53,7 @@ export class AuthService {
     createdAt: Date;
     updatedAt: Date;
   }, active = true, lastLoginAt?: Date) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL is required');
-    }
-
-    const client = new MongoClient(process.env.DATABASE_URL);
+    const client = new MongoClient(getMongoUrl());
 
     try {
       await client.connect();
@@ -112,93 +109,123 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(input.password);
     const now = new Date();
-    const userId = new ObjectId();
 
-    // Use MongoDB client directly to avoid Prisma transaction requirement
     try {
-      const mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan';
-      const client = new MongoClient(mongoUrl);
-      await client.connect();
-
-      const db = client.db('Pragyan');
-      const usersCollection = db.collection('User');
-
-      // Create user document
-      const userDoc = {
-        _id: userId,
-        email: input.email,
-        fullName: input.fullName,
-        password: hashedPassword,
-        role: 'USER',
-        age: null,
-        location: null,
-        phone: null,
-        linkedin: null,
-        skills: [],
-        interests: [],
-        preferences: [],
-        experience: null,
-        experienceType: 'fresher',
-        education: null,
-        educationEntries: [],
-        skillLevel: null,
-        xp: 0,
-        streak: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await usersCollection.insertOne(userDoc as any);
-
-      // Create refresh token
-      const refreshTokensCollection = db.collection('RefreshToken');
-      const refreshTokenStr = generateRefreshToken(userId.toString());
-      await refreshTokensCollection.insertOne({
-        token: refreshTokenStr,
-        userId,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        createdAt: now,
+      // Create user via Prisma to avoid separate MongoClient SRV/DNS resolution paths
+      const created = await prisma.user.create({
+        data: {
+          email: input.email,
+          fullName: input.fullName,
+          password: hashedPassword,
+          role: 'USER',
+          age: null,
+          location: null,
+          phone: null,
+          linkedin: null,
+          skills: [],
+          interests: [],
+          preferences: [],
+          experience: null,
+          experienceType: 'fresher',
+          education: null,
+          educationEntries: [],
+          skillLevel: null,
+          xp: 0,
+          streak: 0,
+        },
       });
 
-      await this.upsertCurrentUserSnapshot(userDoc, true, now);
+      // Create refresh token with Prisma (retry once on unlikely token collision)
+      let refreshTokenStr = generateRefreshToken(created.id);
+      try {
+        await prisma.refreshToken.create({
+          data: {
+            token: refreshTokenStr,
+            userId: created.id,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          // Token collision - generate a new token and retry once
+          refreshTokenStr = generateRefreshToken(created.id);
+          await prisma.refreshToken.create({
+            data: {
+              token: refreshTokenStr,
+              userId: created.id,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            },
+          });
+        } else {
+          throw err;
+        }
+      }
 
-      await client.close();
-
-      // Format response
-      const user = {
-        id: userId.toString(),
-        fullName: input.fullName,
-        email: input.email,
-        role: 'USER',
-        age: null,
-        location: null,
-        phone: null,
-        linkedin: null,
-        skills: [],
-        interests: [],
-        preferences: [],
-        experience: null,
-        education: null,
-        educationEntries: [],
-        skillLevel: null,
-        xp: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+      // Try non-blocking snapshot upsert; do not fail registration if this fails
+      try {
+        await this.upsertCurrentUserSnapshot(
+          {
+            _id: new ObjectId(created.id),
+            email: created.email,
+            fullName: created.fullName,
+            role: created.role,
+            age: created.age ?? null,
+            location: created.location ?? null,
+            phone: created.phone ?? null,
+            linkedin: created.linkedin ?? null,
+            skills: Array.isArray(created.skills) ? created.skills : [],
+            interests: Array.isArray(created.interests) ? created.interests : [],
+            preferences: Array.isArray(created.preferences) ? created.preferences : [],
+            experience: created.experience ?? null,
+            experienceType: created.experienceType ?? null,
+            education: created.education ?? null,
+            educationEntries: created.educationEntries ?? [],
+            skillLevel: created.skillLevel ?? null,
+            xp: created.xp ?? 0,
+            streak: created.streak ?? 0,
+            createdAt: created.createdAt ?? now,
+            updatedAt: created.updatedAt ?? now,
+          } as any,
+          true,
+          now
+        );
+      } catch (snapshotErr: any) {
+        console.warn('Non-blocking snapshot upsert failed:', snapshotErr?.message || String(snapshotErr));
+      }
 
       const accessToken = generateAccessToken({
-        id: userId.toString(),
-        email: input.email,
+        id: created.id,
+        email: created.email,
         role: 'USER',
       });
 
       return {
-        user,
+        user: {
+          id: created.id,
+          fullName: created.fullName,
+          email: created.email,
+          role: created.role,
+          age: created.age,
+          location: created.location,
+          phone: created.phone,
+          linkedin: created.linkedin,
+          skills: Array.isArray(created.skills) ? created.skills : [],
+          interests: Array.isArray(created.interests) ? created.interests : [],
+          preferences: Array.isArray(created.preferences) ? created.preferences : [],
+          experience: created.experience,
+          education: created.education,
+          educationEntries: created.educationEntries ?? [],
+          skillLevel: created.skillLevel,
+          xp: created.xp ?? 0,
+          createdAt: created.createdAt,
+          updatedAt: created.updatedAt,
+        },
         accessToken,
         refreshToken: refreshTokenStr,
       };
     } catch (error: any) {
-      if (error.code === 11000) {
+      console.error('[AuthService.register] error while creating user via Prisma:', error);
+      if (error?.code === 'P2002' || error?.code === 11000) {
         throw new ConflictError('Email already registered');
       }
       throw error;
@@ -226,54 +253,68 @@ export class AuthService {
       role: user.role as 'USER' | 'ADMIN',
     });
 
-    const refreshToken = generateRefreshToken(user.id);
+    let refreshToken = generateRefreshToken(user.id);
 
     // Use MongoDB driver directly to avoid transaction requirement
     try {
-      const mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan';
-      const client = new MongoClient(mongoUrl);
-      await client.connect();
+      // Create refresh token via Prisma to avoid MongoClient SRV DNS issues
+      try {
+        await prisma.refreshToken.create({
+          data: {
+            token: refreshToken,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          // Collision - try once with a fresh token
+          refreshToken = generateRefreshToken(user.id);
+          await prisma.refreshToken.create({
+            data: {
+              token: refreshToken,
+              userId: user.id,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            },
+          });
+        } else {
+          throw err;
+        }
+      }
 
-      const db = client.db('Pragyan');
-      const refreshTokensCollection = db.collection('RefreshToken');
-      
-      await refreshTokensCollection.insertOne({
-        token: refreshToken,
-        userId: new ObjectId(user.id),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(),
-      });
-
-      await this.upsertCurrentUserSnapshot(
-        {
-          _id: new ObjectId(user.id),
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-          age: user.age ?? null,
-          location: user.location ?? null,
-          phone: user.phone ?? null,
-          linkedin: user.linkedin ?? null,
-          skills: Array.isArray(user.skills) ? user.skills : [],
-          interests: Array.isArray(user.interests) ? user.interests : [],
-          preferences: Array.isArray(user.preferences) ? user.preferences : [],
-          experience: user.experience ?? null,
-          experienceType: user.experienceType ?? null,
-          education: user.education ?? null,
-          educationEntries: user.educationEntries ?? [],
-          skillLevel: user.skillLevel ?? null,
-          xp: user.xp ?? 0,
-          streak: user.streak ?? 0,
-          createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
-          updatedAt: new Date(),
-        },
-        true,
-        new Date()
-      );
-
-      await client.close();
+      // Attempt to update snapshot but do not fail login if snapshot upsert fails
+      try {
+        await this.upsertCurrentUserSnapshot(
+          {
+            _id: new ObjectId(user.id),
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            age: user.age ?? null,
+            location: user.location ?? null,
+            phone: user.phone ?? null,
+            linkedin: user.linkedin ?? null,
+            skills: Array.isArray(user.skills) ? user.skills : [],
+            interests: Array.isArray(user.interests) ? user.interests : [],
+            preferences: Array.isArray(user.preferences) ? user.preferences : [],
+            experience: user.experience ?? null,
+            experienceType: user.experienceType ?? null,
+            education: user.education ?? null,
+            educationEntries: user.educationEntries ?? [],
+            skillLevel: user.skillLevel ?? null,
+            xp: user.xp ?? 0,
+            streak: user.streak ?? 0,
+            createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+            updatedAt: new Date(),
+          } as any,
+          true,
+          new Date()
+        );
+      } catch (snapshotErr) {
+        console.warn('Non-blocking snapshot upsert failed during login:', (snapshotErr as any)?.message || snapshotErr);
+      }
     } catch (error: any) {
-      console.error('Failed to save refresh token:', error);
+      console.error('Failed to save refresh token via Prisma:', error);
       throw error;
     }
 
@@ -323,57 +364,92 @@ export class AuthService {
       throw new BadRequestError('At least one profile field is required');
     }
 
-    const mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan';
-    const client = new MongoClient(mongoUrl);
-
     try {
-      await client.connect();
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...data,
+          updatedAt: new Date(),
+        } as any,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          age: true,
+          location: true,
+          phone: true,
+          linkedin: true,
+          skills: true,
+          interests: true,
+          preferences: true,
+          experience: true,
+          experienceType: true,
+          education: true,
+          skillLevel: true,
+          xp: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-      const db = client.db('Pragyan');
-      const usersCollection = db.collection('User');
-      const objectId = new ObjectId(userId);
-
-      const updateDoc: Record<string, unknown> = {
-        ...data,
-        updatedAt: new Date(),
-      };
-
-      await usersCollection.updateOne(
-        { _id: objectId },
-        { $set: updateDoc },
-        { upsert: false }
-      );
-
-      const user = await usersCollection.findOne({ _id: objectId });
-
-      if (!user) {
-        throw new NotFoundError('User not found');
+      // Non-blocking snapshot upsert
+      try {
+        await this.upsertCurrentUserSnapshot(
+          {
+            _id: new ObjectId(updated.id),
+            email: updated.email,
+            fullName: updated.fullName,
+            role: updated.role,
+            age: updated.age ?? null,
+            location: updated.location ?? null,
+            phone: updated.phone ?? null,
+            linkedin: updated.linkedin ?? null,
+            skills: Array.isArray(updated.skills) ? updated.skills : [],
+            interests: Array.isArray(updated.interests) ? updated.interests : [],
+            preferences: Array.isArray(updated.preferences) ? updated.preferences : [],
+            experience: updated.experience ?? null,
+            experienceType: updated.experienceType ?? null,
+            education: updated.education ?? null,
+            educationEntries: [],
+            skillLevel: updated.skillLevel ?? null,
+            xp: updated.xp ?? 0,
+            streak: 0,
+            createdAt: updated.createdAt ?? new Date(),
+            updatedAt: updated.updatedAt ?? new Date(),
+          } as any,
+          true,
+          new Date()
+        );
+      } catch (snapshotErr) {
+        console.warn('Non-blocking snapshot upsert failed during profile update:', (snapshotErr as any)?.message || snapshotErr);
       }
 
-      await this.upsertCurrentUserSnapshot(user as any, true, new Date());
-
       return {
-        id: String(user._id),
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        age: user.age,
-        location: user.location,
-        phone: user.phone,
-        linkedin: user.linkedin,
-        skills: Array.isArray(user.skills) ? user.skills : [],
-        interests: Array.isArray(user.interests) ? user.interests : [],
-        preferences: Array.isArray(user.preferences) ? user.preferences : [],
-        experience: user.experience,
-        experienceType: user.experienceType,
-        education: user.education,
-        skillLevel: user.skillLevel,
-        xp: user.xp,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        id: updated.id,
+        fullName: updated.fullName,
+        email: updated.email,
+        role: updated.role,
+        age: updated.age,
+        location: updated.location,
+        phone: updated.phone,
+        linkedin: updated.linkedin,
+        skills: Array.isArray(updated.skills) ? updated.skills : [],
+        interests: Array.isArray(updated.interests) ? updated.interests : [],
+        preferences: Array.isArray(updated.preferences) ? updated.preferences : [],
+        experience: updated.experience,
+        experienceType: updated.experienceType,
+        education: updated.education,
+        skillLevel: updated.skillLevel,
+        xp: updated.xp,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
       };
-    } finally {
-      await client.close();
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found')) {
+        throw new NotFoundError('User not found');
+      }
+      throw err;
     }
   }
 
@@ -413,33 +489,47 @@ export class AuthService {
 
   async logout(refreshToken: string) {
     // Use MongoDB client directly to avoid transaction requirement
-    const mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan';
-    const client = new MongoClient(mongoUrl);
     try {
-      await client.connect();
-      const db = client.db('Pragyan');
-      const refreshTokenCollection = db.collection('RefreshToken');
-      const currentUsersCollection = db.collection('CurrentUser');
-
       const tokenPayload = verifyRefreshToken(refreshToken);
-      
+
       if (tokenPayload?.id) {
-        await currentUsersCollection.updateOne(
-          { _id: new ObjectId(tokenPayload.id) },
-          {
-            $set: {
-              active: false,
+        // Non-blocking snapshot update
+        try {
+          await this.upsertCurrentUserSnapshot(
+            {
+              _id: new ObjectId(tokenPayload.id),
+              email: '',
+              fullName: '',
+              role: '',
+              age: null,
+              location: null,
+              phone: null,
+              linkedin: null,
+              skills: [],
+              interests: [],
+              preferences: [],
+              experience: null,
+              experienceType: null,
+              education: null,
+              educationEntries: [],
+              skillLevel: null,
+              xp: 0,
+              streak: 0,
+              createdAt: new Date(),
               updatedAt: new Date(),
-            },
-          }
-        );
+            } as any,
+            false,
+            new Date()
+          );
+        } catch (snapshotErr) {
+          console.warn('Non-blocking snapshot update failed during logout:', (snapshotErr as any)?.message || snapshotErr);
+        }
       }
 
-      await refreshTokenCollection.deleteMany({
-        token: refreshToken,
-      });
-    } finally {
-      await client.close();
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+    } catch (err) {
+      console.error('Error during logout token cleanup:', err);
+      throw err;
     }
   }
 }

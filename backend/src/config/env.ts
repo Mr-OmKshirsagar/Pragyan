@@ -30,6 +30,11 @@ export const config = {
     apiKey: process.env.GEMINI_API_KEY || null,
     model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
   },
+
+  groq: {
+    apiKey: process.env.GROQ_API_KEY || null,
+    model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+  },
   
   database: {
     url: process.env.DATABASE_URL,
@@ -64,8 +69,9 @@ export const config = {
 };
 
 export const hasGeminiKey = Boolean(config.gemini.apiKey);
+export const hasGroqKey = Boolean(config.groq.apiKey);
 export const isLocalAI = config.ai.provider === 'local';
 
-if (!hasGeminiKey && !isLocalAI) {
-  console.warn('Warning: GEMINI_API_KEY is not set. AI features will run in fallback/heuristic mode.');
+if (!hasGeminiKey && !hasGroqKey && !isLocalAI) {
+  console.warn('Warning: GEMINI_API_KEY and GROQ_API_KEY are not set. AI features will run in fallback/heuristic mode.');
 }

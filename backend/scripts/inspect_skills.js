@@ -3,7 +3,10 @@ const { MongoClient } = require('mongodb');
 
 (async () => {
   try {
-    const uri = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan?directConnection=true';
+    const uri = process.env.DATABASE_URL;
+    if (!uri) {
+      throw new Error('DATABASE_URL must point to MongoDB Atlas');
+    }
     const client = new MongoClient(uri);
     await client.connect();
     const db = client.db();
