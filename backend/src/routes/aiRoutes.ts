@@ -1,13 +1,11 @@
-import express
-from "express";
+import { Router } from "express";
 
 import {
   recommendCareer
 }
 from "../controllers/aiController";
 
-const router =
-express.Router();
+const router = Router();
 
 router.post(
   "/recommend-career",

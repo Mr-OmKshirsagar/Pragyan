@@ -7,7 +7,8 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>();
 
-const MAX_TOKENS = 10; // requests
+const MAX_TOKENS = 10; // requests for anonymous
+const MAX_TOKENS_AUTH = 60; // requests for authenticated users
 const REFILL_INTERVAL_MS = 60 * 1000; // refill per minute
 
 function getKey(req: Request) {
@@ -21,7 +22,9 @@ export function rateLimiter(req: Request, res: Response, next: NextFunction) {
     const now = Date.now();
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { tokens: MAX_TOKENS, lastRefill: now };
+      const isAuth = Boolean((req as any).user?.id);
+      const initial = isAuth ? MAX_TOKENS_AUTH : MAX_TOKENS;
+      bucket = { tokens: initial, lastRefill: now };
       buckets.set(key, bucket);
     }
 

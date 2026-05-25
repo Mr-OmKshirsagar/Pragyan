@@ -47,7 +47,7 @@ function toJobFeedItem(
     company: string;
     location: string;
     description: string;
-    salary: string | null;
+    salary: unknown;
     skills: string[];
     applyLink: string;
     source: string;
@@ -57,9 +57,19 @@ function toJobFeedItem(
   appliedJobs: Map<string, Date>
 ): JobFeedItem {
   const appliedAt = appliedJobs.get(job.id);
+  const normalizedSalary = typeof job.salary === 'string' ? job.salary : job.salary == null ? null : String(job.salary);
 
   return {
-    ...job,
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    description: job.description,
+    salary: normalizedSalary,
+    skills: Array.isArray(job.skills) ? job.skills : [],
+    applyLink: job.applyLink,
+    source: job.source,
+    createdAt: job.createdAt,
     matchScore: calculateJobMatch(userSkills, Array.isArray(job.skills) ? job.skills : []),
     applied: Boolean(appliedAt),
     appliedAt,
@@ -116,6 +126,7 @@ export async function markJobApplied(userId: string, jobId: string): Promise<Job
   if (!job) {
     throw new Error('Job not found');
   }
+  const normalizedSalary = typeof job.salary === 'string' ? job.salary : job.salary == null ? null : String(job.salary);
 
   try {
     await prisma.jobApplication.upsert({
@@ -159,7 +170,16 @@ export async function markJobApplied(userId: string, jobId: string): Promise<Job
   }
 
   return {
-    ...job,
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    description: job.description,
+    salary: normalizedSalary,
+    skills: Array.isArray(job.skills) ? job.skills : [],
+    applyLink: job.applyLink,
+    source: job.source,
+    createdAt: job.createdAt,
     matchScore: calculateJobMatch(Array.isArray(userSkills?.skills) ? userSkills.skills : [], Array.isArray(job.skills) ? job.skills : []),
     applied: true,
     appliedAt: new Date(),

@@ -77,7 +77,11 @@ function processCareerData(records: CareerRecord[]): Map<string, ProcessedCareer
 }
 
 async function importCareers(careerMap: Map<string, ProcessedCareer>) {
-  const url = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan?directConnection=true';
+  const url = process.env.DATABASE_URL;
+
+  if (!url) {
+    throw new Error('DATABASE_URL must point to MongoDB Atlas');
+  }
   const client = new MongoClient(url);
 
   try {

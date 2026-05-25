@@ -1,854 +1,311 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { apiFetch } from '../../services/api';
-import SkillUpModal from '../components/SkillUpModal';
-import { applyForJob, fetchJobs, type JobFeedItem } from '../../services/jobservices';
-import {
-  generateRecommendations,
-  type SkillRecommendation,
-} from '../../services/recommendations';
+import { motion } from "motion/react";
+import { Link } from "react-router";
+import { Sparkles, Brain, Target, TrendingUp, Trophy, Flame, BookOpen, Briefcase, ArrowRight, Star, Zap, Award, MessageSquare } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { NeuralBackground } from "../components/NeuralBackground";
+import { GlassCard } from "../components/GlassCard";
+import { GlowButton } from "../components/GlowButton";
+import { SectionHeader } from "../components/SectionHeader";
+import { GradientIconWrapper } from "../components/GradientIconWrapper";
+import { AnimatedProgress } from "../components/AnimatedProgress";
+import { useAuth } from "../../context/AuthContext";
+import { recommendationService } from "../../services/recommendationService";
+import { jobsService } from "../../services/jobsService";
 
-interface Job extends JobFeedItem {
-}
-
-interface TopCareer {
-  name: string;
-  score: number;
-  subtitle: string;
-  tag: string;
-}
-
-interface UserInsights {
-  xp: number;
-  streak: number;
-}
-
-interface DashboardProps {
-  userName?: string;
-  assessmentAnswers?: Record<string, any>;
-  onOpenAdmin?: () => void;
-  onViewMatches?: () => void;
-  onViewProfile?: () => void;
-  onRetakeAssessment?: () => void;
-  onViewRoadmaps?: () => void;
-  onViewCatalog?: () => void;
-  onLogout?: () => void;
-}
-
-export default function Dashboard({
-  userName = 'Learner',
-  onOpenAdmin,
-  onViewMatches,
-  onViewProfile,
-  onRetakeAssessment,
-  onViewRoadmaps,
-  onViewCatalog,
-  onLogout,
-}: DashboardProps) {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [topCareer, setTopCareer] = useState<TopCareer | null>(null);
-  const [topCareerId, setTopCareerId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
-  const [userInsights, setUserInsights] = useState<UserInsights>({ xp: 0, streak: 0 });
-  const [skillRecs, setSkillRecs] = useState<SkillRecommendation[]>([]);
-  const [xpAnimated, setXpAnimated] = useState(0);
-
-  const fetchRecommendations = async () => {
-    setRecommendationsLoading(true);
-
-    try {
-      const accessToken = localStorage.getItem('accessToken');
-      if (!accessToken) {
-        setTopCareer(null);
-        setSkillRecs([]);
-        setJobs([]);
-        return;
-      }
-
-      const bundle = await generateRecommendations();
-
-      if (bundle?.topCareer) {
-        setTopCareer({
-          name: bundle.topCareer.career,
-          score: bundle.topCareer.match,
-          subtitle: bundle.topCareer.category || 'Matched from your assessment profile',
-          tag: `${String(bundle.topCareer.confidenceLevel || 'medium').toUpperCase()} CONFIDENCE`,
-        });
-        setTopCareerId(bundle.topCareer.careerId || null);
-      } else {
-        setTopCareer(null);
-      }
-
-      setSkillRecs((bundle?.skillRecommendations || []).slice(0, 6));
-    } catch {
-      setTopCareer(null);
-      setSkillRecs([]);
-    } finally {
-      setRecommendationsLoading(false);
-    }
-  };
-
-  const fetchHiringFeed = async () => {
-    try {
-      const feed = await fetchJobs();
-      const recentJobs = feed?.recentJobs || [];
-      setJobs(recentJobs);
-    } catch {
-      setJobs([]);
-    }
-  };
-
-  const fetchUserInsights = async (): Promise<void> => {
-    try {
-      const accessToken = localStorage.getItem('accessToken');
-      if (!accessToken) return;
-
-      const data = await apiFetch<any>('/api/progress/user/dashboard', undefined, { auth: true });
-
-      const xp = Math.round(data?.data?.stats?.totalXp ?? 0);
-      const streak = data?.data?.stats?.currentStreak ?? 0;
-      setUserInsights({ xp, streak });
-
-      let current = 0;
-      const step = Math.ceil(xp / 40);
-      const timer = setInterval(() => {
-        current = Math.min(current + step, xp);
-        setXpAnimated(current);
-        if (current >= xp) {
-          clearInterval(timer);
-        }
-      }, 40);
-    } catch {
-      // ignore for guests
-    }
-  };
-
-  const [careerExplanation, setCareerExplanation] = useState<string | null>(null);
-  const [explanationLoading, setExplanationLoading] = useState(false);
-  const [showExplanationModal, setShowExplanationModal] = useState(false);
-  const [showSkillUp, setShowSkillUp] = useState(false);
-
-  const fetchCareerExplanation = async () => {
-    if (!topCareerId) return;
-    setShowExplanationModal(true);
-    setExplanationLoading(true);
-    setCareerExplanation(null);
-    try {
-      const resp = await apiFetch<any>(`/api/recommendations/explain/${topCareerId}`, undefined, { auth: true });
-      const payload = resp?.data;
-      if (payload?.parsed) {
-        // render structured
-        const p = payload.parsed;
-        const parts: string[] = [];
-        if (p.summary) parts.push(p.summary);
-        if (Array.isArray(p.skillGaps) && p.skillGaps.length) parts.push('\nTop skill gaps:\n' + p.skillGaps.map((s: string) => `- ${s}`).join('\n'));
-        if (Array.isArray(p.nextActions) && p.nextActions.length) parts.push('\nNext actions:\n' + p.nextActions.map((a: string) => `- ${a}`).join('\n'));
-        if (Array.isArray(p.roadmap) && p.roadmap.length) {
-          parts.push('\n6-week roadmap:');
-          p.roadmap.forEach((w: any) => {
-            parts.push(`Week ${w.week}: ${Array.isArray(w.items) ? w.items.join(', ') : w.items}`);
-          });
-        }
-        if (p.targetLevel) parts.push(`\nTarget level: ${p.targetLevel}`);
-
-        setCareerExplanation(parts.join('\n\n'));
-      } else {
-        setCareerExplanation(payload?.explanation || 'No explanation available');
-      }
-    } catch (err) {
-      setCareerExplanation('Could not load explanation');
-    } finally {
-      setExplanationLoading(false);
-    }
-  };
+export function Dashboard() {
+  const { user } = useAuth();
+  const [topCareer, setTopCareer] = useState<{ career: string; match: number; salaryEstimate?: string; confidenceLevel?: string; reasons?: string[] } | null>(null);
+  const [skillRecommendations, setSkillRecommendations] = useState<Array<{ skill: string; confidence: number; reason: string }>>([]);
+  const [roadmaps, setRoadmaps] = useState<Array<{ id: string; title: string; category: string; level: string; matchScore: number; reason: string; tags: string[] }>>([]);
+  const [jobPreview, setJobPreview] = useState<Array<{ id: string; title: string; company: string; location: string; matchScore: number }>>([]);
 
   useEffect(() => {
-    const loadData = async () => {
-      await fetchUserInsights();
+    let mounted = true;
 
-      await Promise.all([
-        fetchRecommendations(),
-        fetchHiringFeed(),
-      ]);
-
-      setLoading(false);
-    };
-
-    loadData();
-
-  }, []);
-
-  // Check AI status (public)
-  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
-  useEffect(() => {
-    (async () => {
+    async function loadDashboard() {
       try {
-        const resp = await apiFetch<{ data: { enabled: boolean } }>(`/api/ai/status`, undefined, { auth: false });
-        setAiEnabled(resp?.data?.enabled ?? false);
+        const [careerResponse, skillResponse, roadmapResponse, jobsResponse] = await Promise.allSettled([
+          recommendationService.getTopCareer(),
+          recommendationService.getSkillRecommendations(),
+          recommendationService.getRoadmapRecommendations(),
+          jobsService.getJobs(),
+        ]);
+
+        if (!mounted) return;
+
+        if (careerResponse.status === "fulfilled") {
+          setTopCareer(careerResponse.value);
+        }
+
+        if (skillResponse.status === "fulfilled") {
+          setSkillRecommendations(skillResponse.value || []);
+        }
+
+        if (roadmapResponse.status === "fulfilled") {
+          setRoadmaps(roadmapResponse.value || []);
+        }
+
+        if (jobsResponse.status === "fulfilled") {
+          setJobPreview(jobsResponse.value.recommendedJobs?.slice(0, 3) || []);
+        }
       } catch {
-        setAiEnabled(false);
+        // dashboard gracefully falls back to local identity data
       }
-    })();
+    }
+
+    void loadDashboard();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white flex items-center justify-center relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000" />
-        </div>
-        <div className="relative text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 border-4 border-transparent border-t-indigo-500 border-r-purple-500 rounded-full mx-auto mb-4"
-          />
-          <motion.p
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="text-gray-300 font-medium"
-          >
-            Loading your AI dashboard...
-          </motion.p>
-        </div>
-      </div>
-    );
-  }
+  const userName = user?.fullName?.split(" ")[0] || "Explorer";
+  const currentTime = new Date().getHours();
+  const greeting = currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
 
-  const navItems = [
-    { label: 'Career Matches', onClick: onViewMatches, icon: '🎯' },
-    { label: 'Roadmaps', onClick: onViewRoadmaps, icon: '🗺️' },
-    { label: 'Catalog', onClick: onViewCatalog, icon: '📚' },
-    { label: 'Profile', onClick: onViewProfile, icon: '👤' },
-  ];
+  const roadmapPreview = useMemo(() => roadmaps.slice(0, 3), [roadmaps]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 overflow-hidden -z-10">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-cyan-500/20 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-4000" />
-      </div>
+    <div className="min-h-screen relative pb-20 pt-20">
+      <NeuralBackground />
 
-      {/* PREMIUM NAV */}
-      <nav className="sticky top-0 z-20 bg-black/40 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-3"
-            >
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/50">
-                P
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8 relative z-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          <GlassCard glow glowColor="primary" className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/20 to-transparent rounded-full blur-3xl" />
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-primary">
+                  <Sparkles className="w-5 h-5" />
+                  <span className="text-sm font-medium">AI Career Intelligence</span>
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold">
+                  {greeting}, {userName}!
+                </h1>
+                <p className="text-lg text-muted-foreground">Your AI-powered career journey continues</p>
               </div>
-              <span className="font-bold text-lg hidden sm:block text-white">Pragyan</span>
-            </motion.div>
-
-            {/* Nav Items */}
-            <div className="flex items-center gap-1">
-              {navItems.map((item, idx) => (
-                <motion.button
-                  key={item.label}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={item.onClick}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-all group"
-                >
-                  <span className="text-base group-hover:scale-110 transition-transform">{item.icon}</span>
-                  <span className="hidden md:block font-medium">{item.label}</span>
-                </motion.button>
-              ))}
-
-              {onOpenAdmin && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  onClick={onOpenAdmin}
-                  className="px-3 py-2 rounded-lg text-sm text-purple-300 hover:bg-purple-500/20 border border-purple-500/30 ml-2 transition-all font-medium"
-                >
-                  🛡️ Admin
-                </motion.button>
-              )}
-
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                onClick={() => {
-                  if (onLogout) onLogout();
-                }}
-                className="ml-2 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/20 border border-red-500/30 transition-all font-medium"
-              >
-                Logout
-              </motion.button>
+              <GradientIconWrapper size="lg" gradient="purple" glow>
+                <Brain className="w-12 h-12 text-white" />
+              </GradientIconWrapper>
             </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* MAIN CONTENT */}
-      {aiEnabled === false && (
-        <div className="max-w-7xl mx-auto px-6 py-2">
-          <div className="rounded-md bg-yellow-900/60 border border-yellow-800 text-yellow-100 p-3 text-sm">
-            AI features are currently disabled on the server. To enable full AI explanations, set the OPENAI_API_KEY on the backend and restart the server.
-          </div>
-        </div>
-      )}
-      <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
-        {/* PREMIUM HERO SECTION */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="space-y-6"
-        >
-          <div>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 mb-2"
-            >
-              Welcome back 👋
-            </motion.p>
-            <motion.h1
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-5xl md:text-6xl font-bold text-white tracking-tight"
-            >
-              {userName}
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-gray-400 mt-3 text-lg font-medium"
-            >
-              Your AI learning journey is accelerating ✨
-            </motion.p>
-          </div>
+          </GlassCard>
         </motion.div>
 
-        {/* STATS GRID */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
-        >
-          {/* XP Card */}
-          <motion.div
-            whileHover={{ y: -5 }}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-3xl">⚡</span>
-                <span className="text-xs px-2 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-semibold">ACTIVE</span>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}>
+          <GlassCard glow glowColor="accent" className="relative overflow-hidden min-h-[200px]">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/10 to-secondary/10" />
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-accent/30 to-transparent rounded-full blur-3xl" />
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 py-4">
+              <div className="flex-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-6 h-6 text-accent" />
+                  <span className="text-sm font-medium text-accent">Ready to Discover?</span>
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                  Start Your AI Career Assessment
+                </h2>
+                <p className="text-lg text-muted-foreground max-w-2xl">
+                  Unlock personalized career insights powered by adaptive AI assessment, roadmap intelligence, and job recommendations.
+                </p>
               </div>
-              <p className="text-gray-400 text-sm font-medium mb-1">Total XP</p>
-              <motion.h3
-                key={xpAnimated}
-                initial={{ scale: 0.9 }}
-                animate={{ scale: 1 }}
-                className="text-4xl font-bold text-cyan-400 tabular-nums"
-              >
-                {xpAnimated}
-              </motion.h3>
-              <p className="text-xs text-gray-500 mt-2">Earn XP by completing tasks</p>
+              <Link to="/assessment">
+                <GlowButton variant="primary" size="lg" className="whitespace-nowrap">
+                  Begin Assessment
+                  <ArrowRight className="w-5 h-5 ml-2 inline" />
+                </GlowButton>
+              </Link>
             </div>
-          </motion.div>
-
-          {/* Streak Card */}
-          <motion.div
-            whileHover={{ y: -5 }}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-3xl">🔥</span>
-                <span className="text-xs px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-semibold">{userInsights.streak > 0 ? 'ON FIRE' : 'START NOW'}</span>
-              </div>
-              <p className="text-gray-400 text-sm font-medium mb-1">Learning Streak</p>
-              <h3 className="text-4xl font-bold text-amber-400 tabular-nums">{userInsights.streak}d</h3>
-              <p className="text-xs text-gray-500 mt-2">Keep learning daily to build momentum</p>
-            </div>
-          </motion.div>
-
-          {/* Assessment Card */}
-          <motion.button
-            whileHover={{ y: -5 }}
-            onClick={onRetakeAssessment}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden text-left hover:border-green-500/50 transition-all"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-3xl">📝</span>
-                <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-300 font-semibold">RECOMMENDED</span>
-              </div>
-              <p className="text-gray-400 text-sm font-medium mb-1">Quick Access</p>
-              <p className="text-sm font-semibold text-green-400 group-hover:text-green-300 transition-colors">Retake Assessment</p>
-              <p className="text-xs text-gray-500 mt-2">Get fresh career insights</p>
-            </div>
-          </motion.button>
-
-          {/* Top Match Card */}
-          <motion.div
-            whileHover={{ y: -5 }}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-3xl">🎯</span>
-                <span className="text-xs px-2 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-semibold">AI MATCH</span>
-              </div>
-              <p className="text-gray-400 text-sm font-medium mb-1">Top Match</p>
-              <p className="text-sm font-semibold text-purple-300 truncate">{topCareer?.name || 'Complete assessment'}</p>
-              <p className="text-xs text-gray-500 mt-2">Based on your profile</p>
-            </div>
-          </motion.div>
+          </GlassCard>
         </motion.div>
 
-        {/* CAREER MATCH SECTION */}
-        {recommendationsLoading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 overflow-hidden animate-pulse"
-          >
-            <div className="h-6 w-48 bg-white/10 rounded mb-4" />
-            <div className="h-12 w-96 bg-white/10 rounded mb-6" />
-            <div className="h-20 w-40 bg-white/10 rounded" />
-          </motion.div>
-        ) : topCareer ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-10 border border-white/10 overflow-hidden hover:border-indigo-500/30 transition-all"
-          >
-            {/* Animated background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-40 transition-opacity duration-500" />
-
-            <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-              {/* Left Content */}
-              <div className="flex-1 space-y-4">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="flex items-center gap-2"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <p className="text-sm font-semibold text-emerald-400 tracking-widest">BEST CAREER MATCH</p>
-                </motion.div>
-
-                <motion.h2
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-5xl md:text-6xl font-bold text-white leading-tight"
-                >
-                  {topCareer.name}
-                </motion.h2>
-
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-gray-300 text-lg"
-                >
-                  {topCareer.subtitle}
-                </motion.p>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                  className="flex items-center gap-3 flex-wrap pt-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {}}
-                      className="px-4 py-2 rounded-full bg-indigo-500/20 text-indigo-300 text-sm border border-indigo-500/30 font-semibold"
-                    >
-                      {topCareer.tag}
-                    </button>
-                    <button
-                      onClick={() => {
-                        fetchCareerExplanation();
-                        setShowSkillUp(true);
-                      }}
-                      className="text-xs px-3 py-1 rounded-full bg-white/6 hover:bg-white/10 border border-white/10 text-gray-200 transition-all"
-                    >
-                      Skill Up
-                    </button>
+        <div className="grid md:grid-cols-4 gap-6">
+          {[
+            { icon: Flame, label: "Learning Streak", value: "12 Days", color: "pink" as const, subtext: "+2 from last week" },
+            { icon: Trophy, label: "Top Career Match", value: `${topCareer?.match || 0}%`, color: "purple" as const, subtext: topCareer?.career || "Awaiting assessment" },
+            { icon: Target, label: "Active Roadmaps", value: String(roadmaps.length || 0), color: "cyan" as const, subtext: roadmaps[0]?.title || "Dynamic roadmap feed" },
+            { icon: Award, label: "Skill Recommendations", value: String(skillRecommendations.length || 0), color: "blue" as const, subtext: skillRecommendations[0]?.skill || "AI-assisted insight" },
+          ].map((stat, i) => (
+            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 + i * 0.1 }}>
+              <GlassCard hover glow glowColor={stat.color}>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className="text-xs text-muted-foreground">{stat.subtext}</p>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={onViewMatches}
-                    className="px-4 py-2 rounded-full bg-white/10 text-white text-sm border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all font-semibold"
-                  >
-                    View All Matches →
-                  </motion.button>
-                  {careerExplanation && (
-                    <div className="mt-4 bg-white/5 rounded-lg p-4 text-sm text-gray-200 border border-white/10">
-                      <strong className="block text-xs text-gray-300 mb-1">AI Explanation</strong>
-                      <p>{careerExplanation}</p>
-                    </div>
-                  )}
-                  {/* Explanation Modal */}
-                  {showExplanationModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center">
-                      <div className="absolute inset-0 bg-black/60" onClick={() => setShowExplanationModal(false)} />
-                      <div className="relative max-w-2xl w-full bg-slate-900 border border-white/10 rounded-lg p-6 z-10">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="text-lg font-semibold">Why this career?</h3>
-                            <p className="text-sm text-gray-400">AI-generated explanation tailored to your profile</p>
-                          </div>
-                          <button onClick={() => setShowExplanationModal(false)} className="text-gray-300 hover:text-white">Close</button>
-                        </div>
-                        <div className="mt-4">
-                          {explanationLoading ? (
-                            <div className="text-center text-gray-300">Loading explanation…</div>
-                          ) : (
-                            <div className="text-sm text-gray-200 whitespace-pre-line">{careerExplanation || 'No explanation available.'}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <SkillUpModal careerId={topCareerId} visible={showSkillUp} onClose={() => setShowSkillUp(false)} />
-                  <a
-                    href="#jobs-section"
-                    className="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-200 text-sm border border-cyan-400/30 hover:bg-cyan-500/25 hover:border-cyan-300/50 transition-all font-semibold"
-                  >
-                    View Related Jobs →
-                  </a>
-                </motion.div>
-              </div>
-
-              {/* Right - Match Percentage */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4, type: "spring", stiffness: 100 }}
-                className="lg:flex-shrink-0"
-              >
-                <div className="relative w-48 h-48 flex items-center justify-center">
-                  {/* Animated circle background */}
-                  <svg className="w-full h-full" viewBox="0 0 200 200">
-                    <defs>
-                      <linearGradient id="matchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#06B6D4" />
-                        <stop offset="100%" stopColor="#8B5CF6" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="100" cy="100" r="95" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-                    <motion.circle
-                      cx="100"
-                      cy="100"
-                      r="95"
-                      fill="none"
-                      stroke="url(#matchGradient)"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      initial={{ strokeDasharray: "600 600", strokeDashoffset: 600 }}
-                      animate={{ strokeDashoffset: 600 - (600 * topCareer.score) / 100 }}
-                      transition={{ delay: 0.5, duration: 1.5, ease: "easeOut" }}
-                      strokeDasharray="600 600"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.8, type: "spring" }}
-                    >
-                      <p className="text-gray-400 text-sm font-medium">Match Score</p>
-                      <h3 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-                        {topCareer.score}%
-                      </h3>
-                    </motion.div>
-                  </div>
+                  <GradientIconWrapper size="sm" gradient={stat.color}>
+                    <stat.icon className="w-5 h-5 text-white" />
+                  </GradientIconWrapper>
                 </div>
-              </motion.div>
-            </div>
-          </motion.div>
-        ) : null}
-
-        {/* SKILL RECOMMENDATIONS */}
-        {recommendationsLoading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-4"
-          >
-            <div className="h-8 w-56 bg-white/10 rounded animate-pulse" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white/10 rounded-2xl p-5 animate-pulse">
-                  <div className="h-5 w-24 bg-white/10 rounded mb-3" />
-                  <div className="h-3 w-full bg-white/10 rounded mb-3" />
-                  <div className="h-3 w-3/4 bg-white/10 rounded" />
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ) : skillRecs.length > 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl md:text-3xl font-bold text-white">Recommended Skills</h2>
-              <motion.span
-                whileHover={{ scale: 1.05 }}
-                className="text-xs px-4 py-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-semibold"
-              >
-                ✨ AI Personalised
-              </motion.span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {skillRecs.map((rec, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 + i * 0.05 }}
-                  whileHover={{ y: -5 }}
-                  onClick={onViewRoadmaps}
-                  className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-5 border border-white/10 hover:border-indigo-500/30 transition-all cursor-pointer overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold text-white text-sm group-hover:text-indigo-300 transition-colors">{rec.skill}</span>
-                      <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-lg">{rec.confidence}%</span>
-                    </div>
-
-                    <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden border border-white/5">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${rec.confidence}%` }}
-                        transition={{ delay: 0.5 + i * 0.05, duration: 0.8 }}
-                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 rounded-full shadow-lg shadow-indigo-500/50"
-                      />
-                    </div>
-
-                    <p className="text-xs text-gray-400 mt-3 line-clamp-2">{rec.reason}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        ) : null}
-
-        {/* CAREER MATCHES */}
-        {recommendationsLoading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-4"
-          >
-            <div className="h-8 w-40 bg-white/10 rounded animate-pulse" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="bg-white/10 rounded-2xl p-6 animate-pulse">
-                  <div className="h-6 w-2/3 bg-white/10 rounded mb-3" />
-                  <div className="h-4 w-1/2 bg-white/10 rounded mb-3" />
-                  <div className="h-3 w-full bg-white/10 rounded mb-4" />
-                  <div className="h-10 w-full bg-white/10 rounded" />
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ) : jobs.length > 0 ? (
-          <div id="jobs-section" className="space-y-8 scroll-mt-28">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="space-y-4"
-            >
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-white">🔥 Recent Hiring for Your Role</h2>
-                  <p className="text-sm text-gray-400 font-medium mt-1">Latest openings from RapidAPI, matched to your skills</p>
-                </div>
-                <span className="text-sm text-gray-400 font-medium">{jobs.length} openings</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {jobs.map((job, idx) => {
-                  const score = job.matchScore ?? 0;
-                  return (
-                    <motion.div
-                      key={job.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5 + idx * 0.05 }}
-                      whileHover={{ y: -5 }}
-                      className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                      <div className="relative z-10">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">{job.title}</h3>
-                            <p className="text-gray-400 text-sm mt-1">{job.company}</p>
-                            <p className="text-gray-500 text-xs mt-2">📍 {job.location}</p>
-                            <p className="text-[11px] uppercase tracking-widest text-cyan-300/80 mt-3">{job.source}</p>
-                          </div>
-                          <motion.span
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ delay: 0.6 + idx * 0.05 }}
-                            className="text-3xl font-bold text-cyan-400 tabular-nums"
-                          >
-                            {score}%
-                          </motion.span>
-                        </div>
-
-                        <div className="mt-5 space-y-3">
-                          <div>
-                            <div className="h-2 bg-gray-700/50 rounded-full overflow-hidden border border-white/5">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${score}%` }}
-                                transition={{ delay: 0.6 + idx * 0.05, duration: 0.8 }}
-                                className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full shadow-lg shadow-purple-500/50"
-                              />
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1.5 font-medium">Match score</p>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-3 pt-2">
-                            <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${job.applied ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-gray-300'}`}>
-                              {job.applied ? 'Applied' : 'Recent Hiring'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await applyForJob(job.id);
-                                  setJobs((currentJobs) =>
-                                    currentJobs.map((currentJob) =>
-                                      currentJob.id === job.id
-                                        ? { ...currentJob, applied: true, appliedAt: new Date().toISOString() }
-                                        : currentJob
-                                    )
-                                  );
-                                  window.open(job.applyLink, '_blank', 'noopener,noreferrer');
-                                } catch {
-                                  window.open(job.applyLink, '_blank', 'noopener,noreferrer');
-                                }
-                              }}
-                              className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 transition-all rounded-xl py-2.5 font-semibold text-sm text-center"
-                            >
-                              {job.applied ? 'Applied' : 'Apply Now'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
+              </GlassCard>
             </motion.div>
+          ))}
+        </div>
 
-            {jobs.some((job) => job.applied) && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="space-y-4"
-              >
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white">✅ Jobs You Applied For</h2>
-                    <p className="text-sm text-gray-400 font-medium mt-1">Track the roles you already opened</p>
+        <div className="grid md:grid-cols-2 gap-6">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
+            <GlassCard glow glowColor="primary" className="h-full">
+              <div className="flex items-center gap-3 mb-6">
+                <GradientIconWrapper size="md" gradient="purple" glow>
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </GradientIconWrapper>
+                <h3 className="text-xl font-semibold">Active Roadmaps</h3>
+              </div>
+
+              <div className="space-y-4">
+                {roadmapPreview.length ? roadmapPreview.map((roadmap, i) => (
+                  <div key={roadmap.id || i} className="p-4 rounded-lg bg-gradient-to-r from-primary/5 to-transparent border border-primary/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{roadmap.title}</h4>
+                      <span className="text-sm text-primary font-medium">{roadmap.matchScore}%</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">{roadmap.reason}</p>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <motion.div className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" initial={{ width: 0 }} animate={{ width: `${roadmap.matchScore}%` }} transition={{ duration: 1, delay: 0.5 + i * 0.2 }} />
+                    </div>
                   </div>
-                </div>
+                )) : (
+                  <p className="text-muted-foreground">Roadmap suggestions will appear after your assessment.</p>
+                )}
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {jobs
-                    .filter((job) => job.applied)
-                    .map((job, idx) => (
-                      <motion.div
-                        key={job.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 + idx * 0.05 }}
-                        className="group relative bg-gradient-to-br from-emerald-500/10 to-white/5 backdrop-blur-xl rounded-2xl p-6 border border-emerald-500/20 overflow-hidden"
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-transparent to-transparent opacity-100" />
-                        <div className="relative z-10">
-                          <h3 className="text-lg font-bold text-white">{job.title}</h3>
-                          <p className="text-gray-400 text-sm mt-1">{job.company}</p>
-                          <p className="text-gray-500 text-xs mt-2">📍 {job.location}</p>
-                          <p className="text-xs text-emerald-300 mt-4 font-semibold">Applied on {job.appliedAt ? new Date(job.appliedAt).toLocaleDateString() : 'recently'}</p>
-                        </div>
-                      </motion.div>
-                    ))}
-                </div>
-              </motion.div>
-            )}
-          </div>
-        ) : null}
+              <Link to="/roadmap" className="block">
+                <GlowButton variant="secondary" className="w-full mt-6" glow={false}>
+                  View All Roadmaps
+                  <ArrowRight className="w-4 h-4 ml-2 inline" />
+                </GlowButton>
+              </Link>
+            </GlassCard>
+          </motion.div>
 
-        {/* QUICK ACTIONS */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="space-y-4 pb-8"
-        >
-          <h2 className="text-2xl md:text-3xl font-bold text-white">Quick Actions</h2>
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
+            <GlassCard glow glowColor="secondary" className="h-full">
+              <div className="flex items-center gap-3 mb-6">
+                <GradientIconWrapper size="md" gradient="cyan" glow>
+                  <Target className="w-6 h-6 text-white" />
+                </GradientIconWrapper>
+                <h3 className="text-xl font-semibold">Top Career Match</h3>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Skills Roadmaps', icon: '⚡', desc: 'Start structured learning', fn: onViewRoadmaps, gradient: 'from-blue-500' },
-              { label: 'Career Catalog', icon: '📚', desc: 'Browse all paths', fn: onViewCatalog, gradient: 'from-purple-500' },
-              { label: 'My Profile', icon: '👤', desc: 'Update your info', fn: onViewProfile, gradient: 'from-amber-500' },
-            ].map((item, idx) => (
-              <motion.button
-                key={item.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 + idx * 0.05 }}
-                whileHover={{ y: -5 }}
-                onClick={item.fn}
-                className={`group relative bg-gradient-to-br ${item.gradient}/10 to-transparent backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-6 text-left transition-all overflow-hidden`}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative z-10">
-                  <motion.div
-                    whileHover={{ scale: 1.2, rotate: 10 }}
-                    className="text-4xl mb-4 origin-left"
-                  >
-                    {item.icon}
+              <div className="space-y-4">
+                <div className="text-center py-6">
+                  <motion.div className="text-5xl font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent mb-2" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 0.5 }}>
+                    {topCareer?.match || 0}%
                   </motion.div>
-                  <h3 className="font-semibold text-white text-sm group-hover:text-indigo-300 transition-colors">{item.label}</h3>
-                  <p className="text-xs text-gray-400 mt-1">{item.desc}</p>
+                  <p className="text-xl font-semibold mb-1">{topCareer?.career || "Complete Assessment"}</p>
+                  <p className="text-sm text-muted-foreground">{topCareer?.reasons?.[0] || "Based on your skills and interests"}</p>
                 </div>
-              </motion.button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Skills Match", value: topCareer?.requiredSkills?.length ? `${Math.min(100, topCareer.match + 3)}%` : "AI" },
+                    { label: "Confidence", value: topCareer?.confidenceLevel || "High" },
+                    { label: "Salary", value: topCareer?.salaryEstimate || "Dynamic" },
+                    { label: "Growth", value: roadmaps[0]?.level || "High" },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-gradient-to-br from-secondary/10 to-transparent border border-secondary/20 text-center">
+                      <p className="text-sm text-muted-foreground mb-1">{item.label}</p>
+                      <p className="font-semibold text-secondary">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Link to="/results" className="block">
+                <GlowButton variant="secondary" className="w-full mt-6">
+                  View Full Analysis
+                  <ArrowRight className="w-4 h-4 ml-2 inline" />
+                </GlowButton>
+              </Link>
+            </GlassCard>
+          </motion.div>
+        </div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
+          <SectionHeader title="AI Recommendations" subtitle="Personalized suggestions to accelerate your career growth" className="mb-6" />
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { icon: BookOpen, title: "Skill Focus", description: skillRecommendations[0]?.reason || "Master the next skill on your roadmap", priority: "High", time: skillRecommendations[0]?.skill || "Now" },
+              { icon: Briefcase, title: "Job Search", description: jobPreview[0] ? `${jobPreview[0].title} at ${jobPreview[0].company}` : "Review your job matches after assessment", priority: "Medium", time: jobPreview[0]?.location || "This week" },
+              { icon: MessageSquare, title: "Ask the Assistant", description: "Get interview, resume, and roadmap help from the AI assistant", priority: "Medium", time: "Anytime" },
+            ].map((rec, i) => (
+              <GlassCard key={i} hover>
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between">
+                    <GradientIconWrapper size="sm" gradient="purple">
+                      <rec.icon className="w-5 h-5 text-white" />
+                    </GradientIconWrapper>
+                    <span className={`text-xs px-2 py-1 rounded-full ${rec.priority === "High" ? "bg-pink/20 text-pink" : "bg-primary/20 text-primary"}`}>{rec.priority} Priority</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-2">{rec.title}</h4>
+                    <p className="text-sm text-muted-foreground">{rec.description}</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <span className="text-xs text-muted-foreground">{rec.time}</span>
+                    <Link to={rec.title === "Ask the Assistant" ? "/assistant" : rec.title === "Job Search" ? "/jobs" : "/roadmap"} className="text-sm text-primary hover:text-primary/80 font-medium">
+                      Start Now →
+                    </Link>
+                  </div>
+                </div>
+              </GlassCard>
             ))}
           </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.5 }}>
+          <GlassCard glow glowColor="accent">
+            <div className="flex items-center gap-3 mb-6">
+              <GradientIconWrapper size="md" gradient="blue" glow>
+                <TrendingUp className="w-6 h-6 text-white" />
+              </GradientIconWrapper>
+              <h3 className="text-xl font-semibold">This Week's Progress</h3>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">Skill Recommendations</span>
+                    <span className="text-sm font-medium">{skillRecommendations.length}/6</span>
+                  </div>
+                  <AnimatedProgress value={skillRecommendations.length} max={6} showLabel={false} />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">Roadmap Suggestions</span>
+                    <span className="text-sm font-medium">{roadmaps.length}/5</span>
+                  </div>
+                  <AnimatedProgress value={Math.min(roadmaps.length, 5)} max={5} showLabel={false} />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">Job Matches</span>
+                    <span className="text-sm font-medium">{jobPreview.length}/3</span>
+                  </div>
+                  <AnimatedProgress value={jobPreview.length} max={3} showLabel={false} />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">Career Match</span>
+                    <span className="text-sm font-medium">{topCareer?.match || 0}%</span>
+                  </div>
+                  <AnimatedProgress value={topCareer?.match || 0} max={100} showLabel={false} />
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-center items-center text-center p-4 rounded-lg bg-gradient-to-br from-accent/10 to-transparent border border-accent/20">
+                <div className="text-4xl font-bold text-accent mb-1">{topCareer?.match || 0}%</div>
+                <p className="text-sm text-muted-foreground">Weekly Goal Achievement</p>
+                <p className="text-xs text-accent mt-2">{topCareer?.confidenceLevel ? "AI-assisted insight ready" : "Complete your assessment"}</p>
+              </div>
+            </div>
+          </GlassCard>
         </motion.div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '@/lib/prisma';
 import { MongoClient } from 'mongodb';
+import redisClient from '@/lib/redis';
 import { asyncHandler } from '@/middleware/errorHandler';
 import { sendError, sendSuccess } from '@/utils/response';
 
@@ -276,4 +277,150 @@ export const getAssessmentAnalytics = asyncHandler(async (_req: Request, res: Re
   });
 
   return sendSuccess(res, assessments, 200, 'Assessment analytics fetched');
+});
+
+export const getAssessmentCompletionRates = asyncHandler(async (_req: Request, res: Response) => {
+  const [totalUsers, completedRows, totalSessions] = await Promise.all([
+    prisma.user.count(),
+    prisma.assessmentSession.findMany({ select: { userId: true } }),
+    prisma.assessmentSession.count(),
+  ]);
+
+  const completedUsers = new Set(completedRows.map((row) => row.userId)).size;
+
+  const completionRate = totalUsers ? Math.round((completedUsers / totalUsers) * 100) : 0;
+
+  return sendSuccess(
+    res,
+    {
+      totalUsers,
+      completedUsers,
+      totalSessions,
+      completionRate,
+      dropoutRate: 100 - completionRate,
+    },
+    200,
+    'Assessment completion metrics fetched'
+  );
+});
+
+export const createAssessmentQuestion = asyncHandler(async (req: Request, res: Response) => {
+  const { assessmentId, questionText, options, category = 'Adaptive' } = req.body || {};
+  if (!assessmentId || !questionText || !Array.isArray(options) || !options.length) {
+    return sendError(res, 400, 'assessmentId, questionText and options are required');
+  }
+
+  const question = await prisma.assessmentQuestion.create({
+    data: {
+      assessmentId: String(assessmentId),
+      questionText: String(questionText),
+      options: options.map((item: unknown) => String(item)),
+      category: String(category),
+    },
+  });
+
+  return sendSuccess(res, question, 201, 'Assessment question created');
+});
+
+export const upsertDecisionTree = asyncHandler(async (req: Request, res: Response) => {
+  const payload = req.body || {};
+  await redisClient.set('admin:adaptive:decision-tree', JSON.stringify(payload));
+  return sendSuccess(res, { saved: true }, 200, 'Decision tree updated');
+});
+
+export const getDecisionTree = asyncHandler(async (_req: Request, res: Response) => {
+  const raw = await redisClient.get('admin:adaptive:decision-tree');
+  return sendSuccess(res, raw ? JSON.parse(raw) : null, 200, 'Decision tree fetched');
+});
+
+export const upsertWeights = asyncHandler(async (req: Request, res: Response) => {
+  const payload = req.body || {};
+  await redisClient.set('admin:adaptive:weights', JSON.stringify(payload));
+  return sendSuccess(res, { saved: true }, 200, 'Adaptive weights updated');
+});
+
+export const getWeights = asyncHandler(async (_req: Request, res: Response) => {
+  const raw = await redisClient.get('admin:adaptive:weights');
+  return sendSuccess(res, raw ? JSON.parse(raw) : null, 200, 'Adaptive weights fetched');
+});
+
+export const createCareer = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    title,
+    description,
+    category,
+    averageSalary,
+    jobMarketDemand = 55,
+    requiredSkills = [],
+    personalityTraits = [],
+  } = req.body || {};
+
+  if (!title) {
+    return sendError(res, 400, 'title is required');
+  }
+
+  const created = await prisma.career.create({
+    data: {
+      title: String(title),
+      description: description ? String(description) : null,
+      category: category ? String(category) : null,
+      averageSalary: averageSalary ? String(averageSalary) : null,
+      jobMarketDemand: Number(jobMarketDemand),
+    },
+  });
+
+  await Promise.all([
+    ...requiredSkills.map((skill: unknown) =>
+      prisma.careerSkillMapping.create({
+        data: {
+          careerId: created.id,
+          skill: String(skill),
+          importance: 1,
+        },
+      })
+    ),
+    ...personalityTraits.map((trait: unknown) =>
+      prisma.careerInterestMapping.create({
+        data: {
+          careerId: created.id,
+          interest: String(trait),
+          importance: 1,
+        },
+      })
+    ),
+  ]);
+
+  return sendSuccess(res, created, 201, 'Career created');
+});
+
+export const updateCareerWeights = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { skillWeights = [], interestWeights = [] } = req.body || {};
+
+  await Promise.all([
+    ...skillWeights.map((item: any) =>
+      prisma.careerSkillMapping.upsert({
+        where: { careerId_skill: { careerId: id, skill: String(item.skill) } },
+        update: { importance: Number(item.importance || 1) },
+        create: {
+          careerId: id,
+          skill: String(item.skill),
+          importance: Number(item.importance || 1),
+        },
+      })
+    ),
+    ...interestWeights.map((item: any) =>
+      prisma.careerInterestMapping.upsert({
+        where: { careerId_interest: { careerId: id, interest: String(item.interest) } },
+        update: { importance: Number(item.importance || 1) },
+        create: {
+          careerId: id,
+          interest: String(item.interest),
+          importance: Number(item.importance || 1),
+        },
+      })
+    ),
+  ]);
+
+  return sendSuccess(res, { updated: true }, 200, 'Career weights updated');
 });
