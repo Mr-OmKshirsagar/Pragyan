@@ -83,7 +83,7 @@ export const submitAssessment = asyncHandler(async (req: Request, res: Response)
   void (async () => {
     console.log('[AI ENHANCE START]', { userId: req.user?.id, timestamp: new Date().toISOString() });
     try {
-      const enh = await generateCareerEnhancements(answers, combined || []);
+      await generateCareerEnhancements(answers, combined || []);
       console.log('[AI ENHANCE SUCCESS]', { userId: req.user?.id, timestamp: new Date().toISOString() });
       // Optionally persist or emit telemetry here
     } catch (err) {
