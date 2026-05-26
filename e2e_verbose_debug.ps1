@@ -2,8 +2,7 @@ $ErrorActionPreference='Stop'
 $base='http://localhost:5000/api'
 $stamp=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $email="e2e.$stamp@pragyan.test"
-$password = $env:E2E_PASSWORD
-if (-not $password) { Write-Host "E2E_PASSWORD environment variable is not set. Aborting."; exit 1 }
+$password='Pass1234!'
 $fullName='E2E Debug User'
 function run($label, $script){
   Write-Output "STEP: $label"
