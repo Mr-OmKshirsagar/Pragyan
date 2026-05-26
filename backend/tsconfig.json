@@ -24,9 +24,15 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
+    "baseUrl": "./src",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["*"],
+      "@lib/*": ["lib/*"],
+      "@config/*": ["config/*"],
+      "@ai/*": ["ai/*"],
+      "@services/*": ["services/*"],
+      "@utils/*": ["utils/*"],
+      "@middleware/*": ["middleware/*"]
     }
   },
   "include": ["src/**/*"],

@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import { prisma } from '@/lib/prisma';
+import { getMongoUrl } from '@/config/mongo';
 
 export interface AssessmentAnswers {
   skills?: string[];
@@ -22,6 +23,12 @@ export interface CareerMatchResult {
   personalityMatch: number;
   educationMatch: number;
   experienceMatch: number;
+  // Domain-specific scores
+  disciplineScore?: number;
+  communicationScore?: number;
+  leadershipScore?: number;
+  creativityScore?: number;
+  analyticalScore?: number;
   reasons: string[];
 }
 
@@ -29,7 +36,7 @@ class CareerMatchingEngine {
   private mongoUrl: string;
 
   constructor() {
-    this.mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/Pragyan?directConnection=true';
+    this.mongoUrl = getMongoUrl();
   }
 
   /**
@@ -141,6 +148,13 @@ class CareerMatchingEngine {
       careerInterests
     );
 
+    // Domain-specific heuristics
+    const disciplineScore = this.calculateDisciplineScore(this.textFromCareer(career));
+    const communicationScore = this.calculateCommunicationScore(this.textFromCareer(career));
+    const leadershipScore = this.calculateLeadershipScore(this.textFromCareer(career));
+    const creativityScore = this.calculateCreativityScore(this.textFromCareer(career));
+    const analyticalScore = this.calculateAnalyticalScore(this.textFromCareer(career));
+
     // Weighted scoring (rule-based + dataset matching)
     const weights = {
       skills: 0.4,
@@ -183,10 +197,52 @@ class CareerMatchingEngine {
       personalityMatch,
       educationMatch,
       experienceMatch,
+      disciplineScore: Math.round((disciplineScore || 0) * 100) / 100,
+      communicationScore: Math.round((communicationScore || 0) * 100) / 100,
+      leadershipScore: Math.round((leadershipScore || 0) * 100) / 100,
+      creativityScore: Math.round((creativityScore || 0) * 100) / 100,
+      analyticalScore: Math.round((analyticalScore || 0) * 100) / 100,
       reasons,
     };
   }
 
+  // Helper calculation functions for domain-specific scores
+  private calculateDisciplineScore(careerText: string): number {
+    const keywords = ['discipline', 'routine', 'rigor', 'organized', 'structured', 'procedure', 'protocol'];
+    return this.fractionMatch(keywords, careerText);
+  }
+
+  private calculateCommunicationScore(careerText: string): number {
+    const keywords = ['communication', 'present', 'report', 'stakeholder', 'liaison', 'persuasive', 'writing', 'speaking'];
+    return this.fractionMatch(keywords, careerText);
+  }
+
+  private calculateLeadershipScore(careerText: string): number {
+    const keywords = ['lead', 'manage', 'ownership', 'team', 'supervise', 'strategy', 'director'];
+    return this.fractionMatch(keywords, careerText);
+  }
+
+  private calculateCreativityScore(careerText: string): number {
+    const keywords = ['design', 'creative', 'innovation', 'ux', 'art', 'visual', 'product design', 'ideation'];
+    return this.fractionMatch(keywords, careerText);
+  }
+
+  private calculateAnalyticalScore(careerText: string): number {
+    const keywords = ['analysis', 'data', 'model', 'statistics', 'research', 'analytics', 'evaluate'];
+    return this.fractionMatch(keywords, careerText);
+  }
+  // Utilities as private class methods
+  private textFromCareer(career: any) {
+    return [career.title || '', career.description || '', career.category || '']
+      .join(' ')
+      .toLowerCase();
+  }
+
+  private fractionMatch(keywords: string[], text: string): number {
+    if (!text || !keywords || keywords.length === 0) return 0;
+    const matched = keywords.filter((k) => text.includes(k)).length;
+    return Math.min(1, matched / Math.max(1, Math.ceil(keywords.length / 3)));
+  }
   /**
    * Calculate personality/work-style match (0-1)
    */

@@ -1,226 +1,219 @@
-import { useState } from 'react';
-import { Navbar } from '../components/Navbar';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
-import { Tag } from '../components/Tag';
-import { ProgressBar } from '../components/ProgressBar';
+import { motion } from "motion/react";
+import { Link } from "react-router";
+import { Github, Mail, Briefcase, GraduationCap, MapPin, Sparkles, Calendar, ShieldCheck } from "lucide-react";
+import { GlassCard } from "../components/GlassCard";
+import { SectionHeader } from "../components/SectionHeader";
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { Badge } from "../components/ui/badge";
+import { useAuth } from "../../context/AuthContext";
+import { AUTH_SESSION_KEY } from "@/services/apiClient";
 
-interface ProfileProps {
-  userName: string;
-  onLogout: () => void;
-  onNavigate?: (page: 'dashboard' | 'profile' | 'roadmap') => void;
+function formatList(items?: string[] | null, fallback = "Not specified") {
+  if (!items || !items.length) {
+    return fallback;
+  }
+
+  return items.join(", ");
 }
 
-export function Profile({ userName, onLogout, onNavigate }: ProfileProps) {
-  const [skills, setSkills] = useState(['Python', 'React', 'Machine Learning']);
-  const [newSkill, setNewSkill] = useState('');
+function getInitials(name?: string) {
+  if (!name) return "U";
 
-  const handleAddSkill = () => {
-    if (newSkill.trim() && !skills.includes(newSkill.trim())) {
-      setSkills([...skills, newSkill.trim()]);
-      setNewSkill('');
-    }
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "U";
+}
+
+export function Profile() {
+  const { user, status } = useAuth();
+
+  const handleGitHubLink = () => {
+    // Start authenticated linking flow: request a redirect URL then navigate
+    const stored = localStorage.getItem(AUTH_SESSION_KEY);
+    const token = stored ? JSON.parse(stored)?.accessToken : null;
+    fetch('/api/auth/link/start?provider=github', { method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${token || ''}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+        }
+      })
+      .catch(() => {
+        window.location.href = 'http://localhost:5000/api/auth/github';
+      });
   };
 
-  const handleRemoveSkill = (skillToRemove: string) => {
-    setSkills(skills.filter(skill => skill !== skillToRemove));
+  const handleGoogleLink = () => {
+    const stored2 = localStorage.getItem(AUTH_SESSION_KEY);
+    const token2 = stored2 ? JSON.parse(stored2)?.accessToken : null;
+    fetch('/api/auth/link/start?provider=google', { method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${token2 || ''}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+        }
+      })
+      .catch(() => {
+        window.location.href = 'http://localhost:5000/api/auth/google';
+      });
   };
+
+  if (status === "initializing") {
+    return (
+      <div className="min-h-screen relative pt-24 px-6 flex items-center justify-center text-muted-foreground">
+        Loading profile...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen relative pt-24 px-6 flex items-center justify-center">
+        <GlassCard glow glowColor="primary" className="max-w-xl w-full text-center space-y-4">
+          <SectionHeader title="Profile unavailable" subtitle="Sign in to view your personal details, skills, and account information." />
+          <Link to="/auth" className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground">
+            Sign in
+          </Link>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  const details = [
+    { icon: Mail, label: "Email", value: user.email },
+    { icon: Briefcase, label: "Role", value: user.role || "Learner" },
+    { icon: MapPin, label: "Location", value: user.bio || "Career explorer" },
+    { icon: Calendar, label: "Experience", value: user.experience || "Not specified" },
+    { icon: GraduationCap, label: "Education", value: user.education || "Not specified" },
+    { icon: ShieldCheck, label: "Email Verified", value: user.emailVerified ? "Verified" : "Not verified" },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      <Navbar userName={userName} onLogout={onLogout} onNavigate={onNavigate} />
+    <div className="min-h-screen relative pt-24 pb-16">
+      <div className="max-w-6xl mx-auto px-6 space-y-8">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <GlassCard glow glowColor="primary" className="overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10" />
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="flex items-center gap-5">
+                <Avatar className="h-20 w-20 border border-primary/20 shadow-[0_0_30px_-8px_rgba(139,92,246,0.6)]">
+                  <AvatarImage src={user.avatar || undefined} alt={user.fullName} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white text-xl font-semibold">
+                    {getInitials(user.fullName)}
+                  </AvatarFallback>
+                </Avatar>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div>
-              <h2 className="text-3xl font-semibold text-[#0F172A] mb-2">Profile</h2>
-              <p className="text-[#475569]">Manage your personal information and credentials</p>
-            </div>
-
-            <Card className="p-6">
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-6">Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input label="Full Name" defaultValue={userName} />
-                <Input label="Email" type="email" defaultValue="john@example.com" />
-                <Input label="Phone" type="tel" placeholder="+1 (555) 000-0000" />
-                <Input label="LinkedIn Profile" placeholder="linkedin.com/in/username" />
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-[#0F172A]">Education</h3>
-                <Button variant="outline" size="sm">+ Add</Button>
-              </div>
-              <div className="space-y-4">
-                <div className="p-5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-[#0F172A]">Bachelor of Science in Computer Science</h4>
-                      <p className="text-[#475569]">Stanford University</p>
-                    </div>
-                    <button className="text-[#94A3B8] hover:text-[#475569]">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Sparkles className="w-5 h-5" />
+                    <span className="text-sm font-medium">User Profile</span>
                   </div>
-                  <p className="text-sm text-[#475569]">2020 - 2024 • GPA: 3.8/4.0</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-[#0F172A]">Experience</h3>
-                <Button variant="outline" size="sm">+ Add</Button>
-              </div>
-              <div className="space-y-4">
-                <div className="p-5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-[#0F172A]">Software Engineering Intern</h4>
-                      <p className="text-[#475569]">Tech Corp Inc.</p>
-                    </div>
-                    <button className="text-[#94A3B8] hover:text-[#475569]">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p className="text-sm text-[#475569] mb-3">Jun 2023 - Aug 2023</p>
-                  <p className="text-sm text-[#0F172A]">
-                    Developed features for the main web application using React and Node.js. Collaborated with cross-functional teams to deliver user-facing features.
+                  <h1 className="text-3xl md:text-4xl font-bold">{user.fullName}</h1>
+                  <p className="text-muted-foreground max-w-2xl">
+                    Review your personal details, skills, and account information in one place.
                   </p>
                 </div>
               </div>
-            </Card>
 
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-[#0F172A]">Projects</h3>
-                <Button variant="outline" size="sm">+ Add</Button>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="px-3 py-1 text-sm">
+                  {user.provider || "local"}
+                </Badge>
+                <Badge variant="outline" className="px-3 py-1 text-sm border-primary/30 text-primary">
+                  {user.emailVerified ? "Verified account" : "Unverified account"}
+                </Badge>
+                {!(user.linkedAccounts || []).some((a: any) => a.provider === 'github') && (
+                  <button
+                    type="button"
+                    onClick={handleGitHubLink}
+                    className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-400/20 hover:text-cyan-200"
+                  >
+                    <Github className="w-4 h-4" />
+                    Link GitHub
+                  </button>
+                )}
+
+                {!(user.linkedAccounts || []).some((a: any) => a.provider === 'google') && (
+                  <button
+                    type="button"
+                    onClick={handleGoogleLink}
+                    className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2 text-sm font-medium text-sky-300 transition-colors hover:bg-sky-400/20 hover:text-sky-200"
+                  >
+                    <span className="w-4 h-4 inline-block text-sm font-semibold">G</span>
+                    Link Google
+                  </button>
+                )}
               </div>
-              <div className="space-y-4">
-                <div className="p-5 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-[#0F172A]">AI Chatbot Application</h4>
-                      <p className="text-sm text-[#475569] mt-2">
-                        Built a conversational AI chatbot using Python and natural language processing. Implemented sentiment analysis and context management.
-                      </p>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }} className="lg:col-span-2">
+            <GlassCard glow glowColor="secondary" className="h-full">
+              <SectionHeader title="Personal Details" subtitle="Your identity and account information as stored in Pragyan." className="mb-6" />
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                {details.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-border bg-background/30 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <item.icon className="w-4 h-4 text-primary" />
+                      <span className="text-sm">{item.label}</span>
                     </div>
-                    <button className="text-[#94A3B8] hover:text-[#475569]">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
+                    <p className="text-base font-medium break-words">{item.value}</p>
                   </div>
-                  <div className="flex gap-2 mt-3">
-                    <Tag variant="primary">Python</Tag>
-                    <Tag variant="primary">NLP</Tag>
-                    <Tag variant="primary">Flask</Tag>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-6">Skills</h3>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {skills.map((skill, index) => (
-                  <Tag key={index} variant="primary" onRemove={() => handleRemoveSkill(skill)}>
-                    {skill}
-                  </Tag>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a skill"
-                  value={newSkill}
-                  onChange={(e) => setNewSkill(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
-                />
-                <Button variant="primary" onClick={handleAddSkill}>Add</Button>
-              </div>
-            </Card>
-          </div>
+            </GlassCard>
+          </motion.div>
 
-          <div className="space-y-6">
-            <Card className="p-6">
-              <h3 className="font-semibold text-[#0F172A] mb-4">Profile Strength</h3>
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-3xl font-semibold text-[#2563EB]">65%</span>
-                  <span className="text-sm text-[#475569]">Good</span>
-                </div>
-                <ProgressBar value={65} />
-              </div>
-              <p className="text-sm text-[#475569] mb-4">
-                Complete your profile to get better career recommendations
-              </p>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-5 h-5 bg-[#10B981] rounded-full flex items-center justify-center text-white">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <span className="text-[#0F172A]">Personal information</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-5 h-5 bg-[#10B981] rounded-full flex items-center justify-center text-white">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <span className="text-[#0F172A]">Education</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-5 h-5 bg-[#F59E0B] rounded-full flex items-center justify-center text-white text-xs">
-                    1
-                  </div>
-                  <span className="text-[#475569]">Add more experience</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-5 h-5 bg-[#F59E0B] rounded-full flex items-center justify-center text-white text-xs">
-                    2
-                  </div>
-                  <span className="text-[#475569]">Add certifications</span>
-                </div>
-              </div>
-            </Card>
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+            <GlassCard glow glowColor="accent" className="h-full">
+              <SectionHeader title="Account Summary" subtitle="Quick snapshot of your profile completeness." className="mb-6" />
 
-            <Card className="p-6">
-              <h3 className="font-semibold text-[#0F172A] mb-4">AI Suggestions</h3>
-              <div className="space-y-3">
-                <div className="p-3 bg-[#EFF6FF] rounded-lg">
-                  <p className="text-sm text-[#2563EB]">
-                    💼 Add your internship details to showcase real-world experience
-                  </p>
+              <div className="space-y-4">
+                <div className="rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 p-4">
+                  <p className="text-sm text-muted-foreground mb-1">Skills</p>
+                  <p className="font-medium">{formatList(user.skills)}</p>
                 </div>
-                <div className="p-3 bg-[#EFF6FF] rounded-lg">
-                  <p className="text-sm text-[#2563EB]">
-                    🏆 Include your hackathon wins to stand out
-                  </p>
+
+                <div className="rounded-xl bg-gradient-to-br from-secondary/10 to-accent/10 border border-secondary/20 p-4">
+                  <p className="text-sm text-muted-foreground mb-1">Interests</p>
+                  <p className="font-medium">{formatList(user.interests)}</p>
                 </div>
-                <div className="p-3 bg-[#EFF6FF] rounded-lg">
-                  <p className="text-sm text-[#2563EB]">
-                    📝 Add project descriptions with measurable impact
-                  </p>
+
+                <div className="rounded-xl bg-gradient-to-br from-accent/10 to-primary/10 border border-accent/20 p-4">
+                  <p className="text-sm text-muted-foreground mb-1">Bio</p>
+                  <p className="font-medium">{user.bio || "No bio added yet."}</p>
                 </div>
               </div>
-            </Card>
-          </div>
+            </GlassCard>
+          </motion.div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="outline">Cancel</Button>
-          <Button variant="primary">Save Changes</Button>
-        </div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
+          <GlassCard glow glowColor="pink">
+            <SectionHeader title="Skills & Focus" subtitle="The skills currently attached to your profile." className="mb-6" />
+
+            {user.skills?.length ? (
+              <div className="flex flex-wrap gap-3">
+                {user.skills.map((skill) => (
+                  <Badge key={skill} variant="outline" className="px-3 py-1 text-sm border-primary/30 text-foreground bg-background/40">
+                    {skill}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Add skills to make recommendations and roadmap suggestions more precise.</p>
+            )}
+          </GlassCard>
+        </motion.div>
       </div>
     </div>
   );
 }
+
+export default Profile;

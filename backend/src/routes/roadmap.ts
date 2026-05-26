@@ -21,6 +21,7 @@ router.get('/progress', authenticate, roadmapController.getRoadmapProgress);
 router.patch('/task/:id', authenticate, validate(updateRoadmapTaskSchema), roadmapController.updateRoadmapTaskProgress);
 
 router.get('/:id', roadmapController.getRoadmap);
+router.get('/skillup/:careerId', authenticate, roadmapController.skillUp);
 
 // Admin routes
 router.post('/', authenticate, authorize('ADMIN'), validate(createRoadmapSchema), roadmapController.createRoadmap);

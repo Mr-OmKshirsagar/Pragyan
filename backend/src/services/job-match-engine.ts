@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { MongoClient, ObjectId } from 'mongodb';
 
 export type JobFeedItem = {
   id: string;
@@ -46,7 +47,7 @@ function toJobFeedItem(
     company: string;
     location: string;
     description: string;
-    salary: string | null;
+    salary: unknown;
     skills: string[];
     applyLink: string;
     source: string;
@@ -56,9 +57,19 @@ function toJobFeedItem(
   appliedJobs: Map<string, Date>
 ): JobFeedItem {
   const appliedAt = appliedJobs.get(job.id);
+  const normalizedSalary = typeof job.salary === 'string' ? job.salary : job.salary == null ? null : String(job.salary);
 
   return {
-    ...job,
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    description: job.description,
+    salary: normalizedSalary,
+    skills: Array.isArray(job.skills) ? job.skills : [],
+    applyLink: job.applyLink,
+    source: job.source,
+    createdAt: job.createdAt,
     matchScore: calculateJobMatch(userSkills, Array.isArray(job.skills) ? job.skills : []),
     applied: Boolean(appliedAt),
     appliedAt,
@@ -115,27 +126,60 @@ export async function markJobApplied(userId: string, jobId: string): Promise<Job
   if (!job) {
     throw new Error('Job not found');
   }
+  const normalizedSalary = typeof job.salary === 'string' ? job.salary : job.salary == null ? null : String(job.salary);
 
-  await prisma.jobApplication.upsert({
-    where: {
-      userId_jobId: {
+  try {
+    await prisma.jobApplication.upsert({
+      where: {
+        userId_jobId: {
+          userId,
+          jobId,
+        },
+      },
+      update: {
+        status: 'APPLIED',
+        appliedAt: new Date(),
+      },
+      create: {
         userId,
         jobId,
+        status: 'APPLIED',
       },
-    },
-    update: {
-      status: 'APPLIED',
-      appliedAt: new Date(),
-    },
-    create: {
-      userId,
-      jobId,
-      status: 'APPLIED',
-    },
-  });
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('Prisma upsert failed, falling back to MongoDB upsert:', errMsg);
+
+    // Fallback to MongoDB driver for upsert to avoid Prisma transaction requirement
+    try {
+      const mongoUrl = process.env.DATABASE_URL || '';
+      if (mongoUrl) {
+        const client = new MongoClient(mongoUrl);
+        await client.connect();
+        const db = client.db();
+        const jobAppColl = db.collection('JobApplication');
+        const filter = { userId: new ObjectId(userId), jobId: new ObjectId(jobId) };
+        const update = { $set: { status: 'APPLIED', appliedAt: new Date(), updatedAt: new Date() } };
+        await jobAppColl.updateOne(filter, update, { upsert: true });
+        await client.close();
+      }
+    } catch (err2) {
+      const err2Msg = err2 instanceof Error ? err2.message : String(err2);
+      console.warn('MongoDB upsert for JobApplication failed:', err2Msg);
+    }
+  }
 
   return {
-    ...job,
+    id: job.id,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    description: job.description,
+    salary: normalizedSalary,
+    skills: Array.isArray(job.skills) ? job.skills : [],
+    applyLink: job.applyLink,
+    source: job.source,
+    createdAt: job.createdAt,
     matchScore: calculateJobMatch(Array.isArray(userSkills?.skills) ? userSkills.skills : [], Array.isArray(job.skills) ? job.skills : []),
     applied: true,
     appliedAt: new Date(),

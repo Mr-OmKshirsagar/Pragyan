@@ -52,7 +52,7 @@ npm install
 cp .env.example .env
 
 # Configure your DATABASE_URL in .env
-# Example: mongodb://user:password@localhost:27017/pragyan_db
+# Example (Atlas): mongodb+srv://user:password@cluster.mongodb.net/pragyan_db?retryWrites=true&w=majority
 
 # Generate Prisma client
 npm run prisma:generate
@@ -89,6 +89,7 @@ GET    /api/roadmaps/:id           - Get single roadmap
 GET    /api/roadmaps/search?q=     - Search roadmaps
 GET    /api/roadmaps/category/:cat - Get roadmaps by category
 GET    /api/roadmaps/categories    - Get all categories
+GET    /api/roadmaps/skillup/:careerId - Skill-up plan (auth, explanation + profile)
 
 POST   /api/roadmaps               - Create roadmap (ADMIN)
 PUT    /api/roadmaps/:id           - Update roadmap (ADMIN)
@@ -120,6 +121,26 @@ GET    /api/ai/recommend-careers                  - Get career recommendations
 GET    /api/ai/roadmaps/:career                   - Get roadmaps for career
 POST   /api/ai/personalized-roadmap               - Generate personalized roadmap
 ```
+
+## AI And Cache Configuration
+
+- `AI_PROVIDER`: set to `gemini` for Gemini or `local` to force deterministic fallback mode.
+- `GEMINI_API_KEY`: enables live Gemini-generated explanations. If missing, backend uses heuristic fallback.
+- `REDIS_URL`: optional Redis connection string for persistent caching. If missing/unavailable, in-memory cache is used.
+
+Example values in `.env`:
+
+```bash
+AI_PROVIDER=gemini
+GEMINI_API_KEY=AIzaSyDNOZao7XxY53ATGARvKAZKmciuzrGQrvw
+GEMINI_MODEL=gemini-1.5-flash
+REDIS_URL=redis://127.0.0.1:6379
+```
+
+Notes:
+- This project uses the official Google Gemini SDK for all AI calls.
+- The default model is `gemini-1.5-flash` via configuration (`config.gemini.model`).
+- AI responses are requested as JSON where possible; the backend has a robust heuristic fallback when the model is unavailable or returns invalid JSON.
 
 ## 📚 API Examples
 
@@ -280,7 +301,7 @@ curl -X POST http://localhost:5000/api/auth/refresh-token \\
 ```
 PORT=5000
 NODE_ENV=development
-DATABASE_URL=mongodb://user:password@localhost:27017/pragyan_db
+DATABASE_URL=mongodb+srv://user:password@cluster.mongodb.net/pragyan_db?retryWrites=true&w=majority
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRY=7d
 JWT_REFRESH_SECRET=your_jwt_refresh_secret_key
