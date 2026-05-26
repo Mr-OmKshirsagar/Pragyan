@@ -6,3 +6,4 @@ backend/.mongo-data/
 node_modules/
 .env
 dist/
+frontend/package-lock.json
