@@ -1,524 +1,242 @@
+# Pragyan
 
-# 🚀 Pragyan - AI-Powered Career Guidance & Learning Platform
+Pragyan is an AI-powered career guidance and learning platform. The repository is split into two runnable apps:
 
-> An intelligent, adaptive ecosystem for career discovery, skill development, and job matching powered by AI and data-driven recommendations.
+- `frontend/` - the React + Vite website
+- `backend/` - the Express + TypeScript API, Prisma schema, and seed scripts
 
-![Status](https://img.shields.io/badge/Status-Production%20Ready-green)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
-![License](https://img.shields.io/badge/License-MIT-purple)
+Local development uses these default ports:
 
----
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:5000`
 
-## 📋 Table of Contents
+The frontend Vite server proxies `/api` requests to the backend during development, so the browser only needs to talk to the frontend origin.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Running the Project](#running-the-project)
-- [API Documentation](#api-documentation)
-- [Database](#database)
-- [Seeding Data](#seeding-data)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Troubleshooting](#troubleshooting)
+## What Pragyan Does
 
----
+Pragyan helps users:
 
-## 🎯 Overview
+- discover careers that fit their interests and skills
+- complete adaptive assessments
+- view learning roadmaps and progress tracking
+- get AI-assisted recommendations and explanations
+- explore jobs, roadmaps, and personalized guidance
 
-**Pragyan** is a comprehensive AI-powered platform designed to revolutionize career guidance through:
+## Project Layout
 
-- **Adaptive Assessment Engine**: Dynamic questionnaires that learn from user responses
-- **Intelligent Career Matching**: Data-driven career recommendations based on skills, interests, and market demand
-- **Structured Learning Roadmaps**: Comprehensive learning paths from beginner to advanced
-- **Job Market Intelligence**: Real-time job opportunities aligned with career goals
-- **AI-Powered Insights**: Personalized recommendations and analysis using Gemini API
-
-### Who Is It For?
-
-- 🎓 **Students** - Explore career paths and plan education
-- 👨‍💼 **Job Seekers** - Find ideal roles matching your skills
-- 📚 **Career Changers** - Understand skill gaps and learning needs
-- 🏫 **Educational Institutions** - Integrate career guidance into curriculum
-
----
-
-## ✨ Key Features
-
-### Core Capabilities
-
-- ✅ **User Authentication** - Secure JWT-based authentication with refresh tokens
-- ✅ **Adaptive Assessment** - AI-powered dynamic questionnaires
-- ✅ **Career Intelligence** - 16+ diverse career paths with skill mappings
-- ✅ **Learning Roadmaps** - 5 comprehensive roadmaps with 100+ modules
-- ✅ **Job Marketplace** - 20+ opportunities aligned with careers
-- ✅ **Progress Tracking** - XP system, achievements, streak counters
-- ✅ **Skill Analytics** - Detailed gap analysis and recommendations
-- ✅ **AI Chat Assistant** - Conversational guidance powered by Gemini
-
-### Technical Excellence
-
-- 🔒 **Production-Safe** - MongoDB Atlas + Prisma ORM with replica-set support
-- 🚀 **Highly Scalable** - Microservices architecture, Redis caching
-- ⚡ **Performance Optimized** - Lazy loading, route splitting, optimized queries
-- 🎨 **Modern UI** - React 18, Framer Motion, Tailwind CSS
-- 📱 **Fully Responsive** - Mobile-first design approach
-- 🔍 **SEO Ready** - Server-side rendering support
-
----
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool (dev server on port 5173)
-- **Tailwind CSS** - Styling
-- **Framer Motion** - Animations
-- **Recharts** - Data visualization
-- **Axios** - HTTP client
-
-### Backend
-- **Node.js** - Runtime
-- **Express.js** - Web framework
-- **TypeScript** - Type safety
-- **Prisma** - MongoDB ORM
-- **MongoDB Atlas** - Cloud database
-- **JWT** - Authentication
-- **Gemini API** - AI/LLM integration
-- **Redis** - Caching (optional)
-
----
-
-## 📁 Project Structure
-
-```
+```text
 Pragyan/
-├── frontend/                    # React application (port 5173)
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── pages/          # Page components
-│   │   │   ├── components/     # Reusable components
-│   │   │   └── App.tsx
-│   │   ├── services/           # API services
-│   │   └── styles/             # Global styles
-│   ├── vite.config.ts
-│   └── package.json
-│
-├── backend/                     # Node.js server (port 5000)
-│   ├── src/
-│   │   ├── routes/             # API endpoints
-│   │   ├── controllers/        # Route handlers
-│   │   ├── services/           # Business logic
-│   │   ├── middleware/         # Express middleware
-│   │   ├── config/             # Configuration
-│   │   ├── ai/                 # AI integration
-│   │   └── app.ts
-│   ├── prisma/
-│   │   ├── schema.prisma       # Database schema
-│   │   └── seed.ts
-│   ├── scripts/
-│   │   ├── seedCareers.ts
-│   │   ├── seedRoadmaps.ts
-│   │   ├── seedJobs.ts
-│   │   └── smokeTestv2.ts
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── README.md
-└── package.json
+├── frontend/        # Web app
+├── backend/         # API server, database schema, tests
+├── README.md        # This guide
+└── .gitignore       # Shared ignore rules
 ```
 
----
+Important frontend folders:
 
-## 💻 Installation & Setup
+- `frontend/src/app/` - pages, route components, shared UI pieces
+- `frontend/src/context/` - React providers such as auth state
+- `frontend/src/services/` - API client and feature services
+- `frontend/src/styles/` - global CSS entry files and theme layers
 
-### Prerequisites
+Important backend folders:
 
-- **Node.js** v18+ ([Download](https://nodejs.org/))
-- **npm** v9+ or **pnpm** v8+
-- **MongoDB Atlas** account ([Sign up free](https://www.mongodb.com/cloud/atlas))
-- **Gemini API** key ([Get here](https://ai.google.dev/))
+- `backend/src/` - server bootstrap, routes, controllers, services, middleware
+- `backend/prisma/` - Prisma schema and seed file
+- `backend/scripts/` - seed/import/check scripts
 
-### Step 1: Install Dependencies
+## Prerequisites
+
+Install these before starting the project:
+
+- Node.js 18 or newer
+- npm 9+ or pnpm 8+
+- MongoDB Atlas or another MongoDB replica-set compatible database
+- Optional AI provider keys if you want live AI responses
+
+## First-Time Setup
+
+### 1. Install dependencies
+
+Install packages inside both app folders:
 
 ```bash
-# Install root dependencies
+cd /workspaces/Pragyan/backend
 npm install
 
-# Or with pnpm
-pnpm install
+cd /workspaces/Pragyan/frontend
+npm install
 ```
 
-### Step 2: Configure Environment
+### 2. Configure the backend environment
 
-Create `backend/.env`:
-
-```env
-# Server
-PORT=5000
-NODE_ENV=development
-
-# Database (MongoDB Atlas)
-DATABASE_URL="mongodb+srv://username:password@cluster.mongodb.net/Pragyan?retryWrites=true&w=majority"
-
-# JWT
-JWT_SECRET="change_this_to_secure_random_string"
-JWT_EXPIRY="7d"
-JWT_REFRESH_SECRET="change_this_too"
-JWT_REFRESH_EXPIRY="30d"
-
-# CORS
-CORS_ORIGINS=http://localhost:5173,http://localhost:5174
-
-# AI
-AI_PROVIDER=gemini
-GEMINI_API_KEY="your_gemini_api_key"
-GEMINI_MODEL="gemini-1.5-flash"
-
-# Optional
-REDIS_URL="redis://localhost:6379"
-```
-
-### Step 3: Initialize Database
+Create the backend environment file from the example:
 
 ```bash
-cd backend
-
-# Generate Prisma client
-npx prisma generate
-
-# Create MongoDB collections and indexes
-npx prisma db push
-
-# Seed with intelligent data
-npx ts-node scripts/seedAll.ts
+cd /workspaces/Pragyan/backend
+cp .env.example .env
 ```
 
----
+Set at least these values in `backend/.env`:
 
-## 🚀 Quick Start
+- `DATABASE_URL` - MongoDB connection string
+- `JWT_SECRET` - access-token secret
+- `JWT_REFRESH_SECRET` - refresh-token secret
+- `FRONTEND_URL` - usually `http://localhost:5173`
+- `CORS_ORIGINS` - allowed browser origins
 
-### Development Mode
+Optional values for AI and caching:
 
-**Terminal 1 - Start Backend:**
+- `AI_PROVIDER`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
+- `GROQ_API_KEY`
+- `REDIS_URL`
+
+Do not commit `.env` files.
+
+### 3. Prepare the database
+
+From the backend folder:
+
 ```bash
-cd backend
+cd /workspaces/Pragyan/backend
+npm run prisma:generate
+npm run prisma:push
+```
+
+If you want demo data, run:
+
+```bash
+npm run seed
+```
+
+The backend validates its environment before it starts listening, so a bad `DATABASE_URL` or missing secret will stop startup early.
+
+## How To Start The Website
+
+Open two terminals and start both services.
+
+### Terminal 1 - Backend
+
+```bash
+cd /workspaces/Pragyan/backend
 npm run dev
-# Backend running on http://localhost:5000
 ```
 
-**Terminal 2 - Start Frontend:**
+This starts the API on `http://localhost:5000`.
+
+### Terminal 2 - Frontend
+
 ```bash
-cd frontend
+cd /workspaces/Pragyan/frontend
 npm run dev
-# Frontend running on http://localhost:5173
 ```
 
-Then open **http://localhost:5173** in your browser!
+This starts the website on `http://localhost:5173`.
 
-### Production Build
+Open `http://localhost:5173` in your browser after both are running.
 
-```bash
-# Build frontend
-cd frontend && npm run build
+## Recommended Startup Order
 
-# Build backend
-cd backend && npm run build
+1. Start the backend first so auth and data requests have a live API.
+2. Start the frontend second so Vite can serve the UI and proxy `/api` calls.
+3. Seed the database if you want sample roadmaps, jobs, and test accounts.
+4. Keep the backend terminal visible because it prints configuration and connection issues clearly.
 
-# Start backend
-npm run start
-```
-
----
-
-## 🏃 Available Commands
-
-### Backend
-
-```bash
-npm run dev              # Development with hot reload
-npm run build            # Build TypeScript
-npm run start            # Run production server
-npm run test             # Run tests
-npm run seed             # Seed database
-npx prisma generate     # Generate Prisma client
-npx prisma db push      # Push schema to MongoDB
-```
+## Useful Commands
 
 ### Frontend
 
 ```bash
-npm run dev              # Dev server (port 5173)
-npm run build            # Production build
-npm run preview          # Preview build
-npm run lint             # Run ESLint
+cd /workspaces/Pragyan/frontend
+npm run dev
+npm run build
 ```
 
-### Seeding
+### Backend
 
 ```bash
-cd backend
-
-# Seed all data (careers, roadmaps, jobs)
-npx ts-node scripts/seedAll.ts
-
-# Or individual seeds
-npx ts-node scripts/seedCareers.ts
-npx ts-node scripts/seedRoadmaps.ts
-npx ts-node scripts/seedJobs.ts
+cd /workspaces/Pragyan/backend
+npm run dev
+npm run build
+npm run start
+npm run seed
+npm test
 ```
 
----
-
-## 🌱 Seeded Data
-
-### What's Included
-
-**16 Career Paths**:
-- Software Engineering (Full Stack, Backend, Frontend, DevOps)
-- AI/ML (ML Engineer, Data Scientist)
-- Cybersecurity (Security Engineer, Pentester)
-- Cloud (Cloud Architect, Infrastructure)
-- Design (UI/UX, Product Design)
-- Government (IAS Officer)
-- Defence (Military Officer)
-- Teaching (School Teacher)
-- Medicine (Doctor)
-- Finance (Investment Banker)
-- Marketing & Entrepreneurship
-
-**5 Learning Roadmaps**:
-1. Full Stack Web Development (12 weeks, 120 hours)
-2. Python for Data Science (16 weeks, 160 hours)
-3. Cybersecurity Fundamentals (10 weeks, 100 hours)
-4. UPSC Exam Preparation (52 weeks, 520 hours)
-5. UI/UX Design Mastery (12 weeks, 120 hours)
-
-**100+ Learning Modules** with structured weeks, days, and tasks
-
-**21 Job Listings** with salaries, companies, and skill requirements
-
----
-
-## 🔌 API Endpoints
-
-### Authentication
-```
-POST   /api/auth/register      - Create account
-POST   /api/auth/login         - Login
-POST   /api/auth/refresh       - Refresh token
-POST   /api/auth/logout        - Logout
-```
-
-### Assessment & Careers
-```
-POST   /api/assessment/generate - Generate assessment
-POST   /api/assessment/submit    - Submit answers
-GET    /api/assessment/result    - Get results
-GET    /api/career-matching     - Matched careers
-GET    /api/recommendations     - Career recommendations
-```
-
-### Learning
-```
-GET    /api/roadmaps           - All roadmaps
-GET    /api/roadmaps/:id       - Roadmap details
-GET    /api/progress           - User progress
-POST   /api/progress/update    - Update progress
-GET    /api/skills             - Available skills
-```
-
-### Jobs & AI
-```
-GET    /api/jobs               - Job listings
-GET    /api/jobs/:id           - Job details
-POST   /api/jobs/apply         - Apply for job
-POST   /api/ai/chat            - Chat with AI
-GET    /api/ai/suggestions     - AI suggestions
-```
-
----
-
-## 🗄️ Database Schema
-
-**Collections**:
-- `User` - User profiles
-- `Career` - Career definitions
-- `CareerSkillMapping` - Required skills
-- `CareerInterestMapping` - Interest alignment
-- `Roadmap` - Learning paths
-- `Week`, `Day`, `Task` - Roadmap structure
-- `Job` - Job listings
-- `AssessmentResult` - Assessment results
-- `UserProgress` - Learning progress
-- `UserAchievement` - Unlocked achievements
-
----
-
-## 🧪 Testing
-
-### Run E2E Smoke Test
+### Prisma
 
 ```bash
-cd backend
-npx ts-node scripts/smokeTestv2.ts
-
-# Expected: 5+ tests pass ✅
+cd /workspaces/Pragyan/backend
+npm run prisma:generate
+npm run prisma:push
 ```
 
-### Run Unit Tests
+## What Lives Where
 
-```bash
-cd backend
-npm run test
-```
+### Frontend
 
----
+The frontend is a React app with lazy-loaded routes and an auth context that persists sessions in local storage. Main areas include:
 
-## 🔐 Security
+- `frontend/src/app/pages/` - landing, auth, dashboard, assessment, roadmap, results, profile, assistant, and analysis pages
+- `frontend/src/app/components/` - shared UI, navigation, and visual components
+- `frontend/src/services/` - API wrappers for auth, jobs, roadmaps, assessment, and recommendations
+- `frontend/src/context/AuthContext.tsx` - session bootstrap and auth state
 
-- ✅ JWT authentication with refresh tokens
-- ✅ Password hashing (bcryptjs)
-- ✅ CORS protection
-- ✅ Rate limiting
-- ✅ Helmet security headers
-- ✅ Input validation (Zod)
-- ✅ Environment variables protected
-- ✅ Error handling (no sensitive leaks)
+### Backend
 
----
+The backend uses Express, Passport, Prisma, and MongoDB. Main areas include:
 
-## 🐛 Troubleshooting
+- `backend/src/app.ts` - Express app setup, middleware, and route registration
+- `backend/src/server.ts` - startup validation, Prisma connection, and server boot
+- `backend/src/routes/` - API route modules
+- `backend/src/controllers/` - request handlers
+- `backend/src/services/` - business logic and AI helpers
+- `backend/prisma/schema.prisma` - database schema
 
-### MongoDB Connection Failed
+## API Areas
 
-```
-Error: Connection refused
-```
+The backend exposes grouped routes for:
 
-**Fix**:
-1. Check `DATABASE_URL` in `backend/.env`
-2. Verify IP whitelist in MongoDB Atlas (or use 0.0.0.0/0)
-3. Ensure cluster is running (not paused)
-4. Test with `mongosh`:
-   ```bash
-   mongosh "mongodb+srv://user:pass@cluster.mongodb.net/Pragyan"
-   ```
+- authentication
+- roadmaps
+- progress tracking
+- assessments
+- AI recommendations
+- jobs and career matching
+- admin and utility workflows
 
-### Prisma Client Error
+There is also a health endpoint at `/health`.
 
-```
-EPERM: operation not permitted
-```
+## Troubleshooting
 
-**Fix** (Windows):
-```bash
-# Stop Node processes, then regenerate
-npx prisma generate
-```
+### The frontend does not load
 
-### Frontend Blank Page
+- Confirm `frontend/` is running with `npm run dev`.
+- Confirm `backend/` is also running on port `5000`.
+- Check the browser console for `/api` failures.
 
-**Fix**:
-1. Verify backend on port 5000: `curl http://localhost:5000/health`
-2. Check `CORS_ORIGINS` includes `http://localhost:5173`
-3. Clear browser cache, reload
-4. Check browser console for errors
+### The backend exits immediately
 
----
+- Check `backend/.env`.
+- Confirm `DATABASE_URL` points to a valid MongoDB instance.
+- Confirm the MongoDB cluster supports the Prisma MongoDB workflow.
 
-## 📊 Performance Metrics
+### Auth requests fail
 
-- Frontend Bundle: ~900KB (gzipped)
-- API Response: <200ms typical
-- Database Queries: Optimized with indexes
-- Caching: Redis + in-memory fallback
+- Confirm `FRONTEND_URL` and `CORS_ORIGINS` include `http://localhost:5173`.
+- Make sure the backend is running before logging in.
+- Clear browser storage if you have an old invalid session.
 
----
+### Prisma setup fails
 
-## 🚢 Deployment
+- Run `npm run prisma:generate` again.
+- Re-check `backend/prisma/schema.prisma`.
+- Run `npm run prisma:push` after the database connection is fixed.
 
-### MongoDB Atlas Setup
+## Notes
 
-1. Create cluster: [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
-2. Create database user
-3. Whitelist IP (0.0.0.0/0 for dev, specific IPs for prod)
-4. Get connection URI
-5. Set as `DATABASE_URL` in `backend/.env`
-
-### Required Environment Variables
-
-- `DATABASE_URL` - MongoDB URI
-- `JWT_SECRET` - Random secure string
-- `JWT_REFRESH_SECRET` - Another random string
-- `GEMINI_API_KEY` - From Google AI
-- `CORS_ORIGINS` - Your domain(s)
-- `NODE_ENV` - "production"
-
-### Docker
-
-```bash
-docker build -t pragyan-backend backend/
-docker run -p 5000:5000 \
-  -e DATABASE_URL="..." \
-  -e JWT_SECRET="..." \
-  pragyan-backend
-```
-
----
-
-## 📞 Support & Contributing
-
-### Report Bugs
-
-Include:
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment (Node version, OS)
-- Error messages/logs
-
-### Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/xyz`
-3. Commit: `git commit -m 'Add xyz'`
-4. Push: `git push origin feature/xyz`
-5. Open Pull Request
-
----
-
-## 📜 License
-
-MIT License - see LICENSE file for details.
-
----
-
-## 🎉 Acknowledgments
-
-- MongoDB for database infrastructure
-- Google AI for Gemini API
-- React and Node.js communities
-- All contributors
-
----
-
-## 🗺️ Future Roadmap
-
-- [ ] Video learning integration
-- [ ] Mobile app (React Native)
-- [ ] Live mentoring
-- [ ] Portfolio builder
-- [ ] Interview prep
-- [ ] Blockchain credentials
-- [ ] Community features
-
----
-
-**Made with ❤️ for Career Guidance**
-
-Latest Update: May 2026
-  
+- The canonical Vite config for the app is `frontend/vite.config.ts`.
+- The backend startup code validates env values before serving traffic.
+- Keep placeholder CSS files only if they are still imported by the build.
