@@ -4,6 +4,7 @@ Pragyan is an AI-powered career guidance platform that combines assessment, road
 
 ## What it does
 
+<<<<<<< HEAD
 - Career assessment and matching
 - Personalized learning roadmaps with day-wise sections
 - Trusted learning resources for docs, video, practice, and mini-projects
@@ -14,6 +15,11 @@ Pragyan is an AI-powered career guidance platform that combines assessment, road
 - Quiz performance feedback loop for recovery, growth, and stretch modes
 - Progress tracking with XP, streaks, and project unlocks
 - Roadmap search backed by MongoDB text search
+=======
+![Status](https://img.shields.io/badge/Status-Production%20Ready-green)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+
+>>>>>>> 1773343e56ce38dad559654f23fa6a799bdece19
 
 ## Tech Stack
 
@@ -172,4 +178,161 @@ npm run build
 
 ## License
 
+<<<<<<< HEAD
 See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for project attribution and licensing notes.
+=======
+# Expected: 5+ tests pass ✅
+```
+
+### Run Unit Tests
+
+```bash
+cd backend
+npm run test
+```
+
+---
+
+## 🔐 Security
+
+- ✅ JWT authentication with refresh tokens
+- ✅ Password hashing (bcryptjs)
+- ✅ CORS protection
+- ✅ Rate limiting
+- ✅ Helmet security headers
+- ✅ Input validation (Zod)
+- ✅ Environment variables protected
+- ✅ Error handling (no sensitive leaks)
+
+---
+
+## 🐛 Troubleshooting
+
+### MongoDB Connection Failed
+
+```
+Error: Connection refused
+```
+
+**Fix**:
+1. Check `DATABASE_URL` in `backend/.env`
+2. Verify IP whitelist in MongoDB Atlas (or use 0.0.0.0/0)
+3. Ensure cluster is running (not paused)
+4. Test with `mongosh`:
+   ```bash
+   mongosh "mongodb+srv://user:pass@cluster.mongodb.net/Pragyan"
+   ```
+
+### Prisma Client Error
+
+```
+EPERM: operation not permitted
+```
+
+**Fix** (Windows):
+```bash
+# Stop Node processes, then regenerate
+npx prisma generate
+```
+
+### Frontend Blank Page
+
+**Fix**:
+1. Verify backend on port 5000: `curl http://localhost:5000/health`
+2. Check `CORS_ORIGINS` includes `http://localhost:5173`
+3. Clear browser cache, reload
+4. Check browser console for errors
+
+---
+
+## 📊 Performance Metrics
+
+- Frontend Bundle: ~900KB (gzipped)
+- API Response: <200ms typical
+- Database Queries: Optimized with indexes
+- Caching: Redis + in-memory fallback
+
+---
+
+## 🚢 Deployment
+
+### MongoDB Atlas Setup
+
+1. Create cluster: [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create database user
+3. Whitelist IP (0.0.0.0/0 for dev, specific IPs for prod)
+4. Get connection URI
+5. Set as `DATABASE_URL` in `backend/.env`
+
+### Required Environment Variables
+
+- `DATABASE_URL` - MongoDB URI
+- `JWT_SECRET` - Random secure string
+- `JWT_REFRESH_SECRET` - Another random string
+- `GEMINI_API_KEY` - From Google AI
+- `CORS_ORIGINS` - Your domain(s)
+- `NODE_ENV` - "production"
+
+### Docker
+
+```bash
+docker build -t pragyan-backend backend/
+docker run -p 5000:5000 \
+  -e DATABASE_URL="..." \
+  -e JWT_SECRET="..." \
+  pragyan-backend
+```
+
+---
+
+## 📞 Support & Contributing
+
+### Report Bugs
+
+Include:
+- Steps to reproduce
+- Expected vs actual behavior
+- Environment (Node version, OS)
+- Error messages/logs
+
+### Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/xyz`
+3. Commit: `git commit -m 'Add xyz'`
+4. Push: `git push origin feature/xyz`
+5. Open Pull Request
+
+---
+
+## 📜 License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## 🎉 Acknowledgments
+
+- MongoDB for database infrastructure
+- Google AI for Gemini API
+- React and Node.js communities
+- All contributors
+
+---
+
+## 🗺️ Future Roadmap
+
+- [ ] Video learning integration
+- [ ] Mobile app (React Native)
+- [ ] Live mentoring
+- [ ] Portfolio builder
+- [ ] Interview prep
+- [ ] Blockchain credentials
+- [ ] Community features
+
+---
+
+**Made with ❤️ for Career Guidance**
+
+
+>>>>>>> 1773343e56ce38dad559654f23fa6a799bdece19
