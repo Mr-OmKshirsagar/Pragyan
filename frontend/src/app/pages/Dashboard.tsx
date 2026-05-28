@@ -8,7 +8,7 @@ import { GlowButton } from "../components/GlowButton";
 import { SectionHeader } from "../components/SectionHeader";
 import { GradientIconWrapper } from "../components/GradientIconWrapper";
 import { AnimatedProgress } from "../components/AnimatedProgress";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import { recommendationService } from "../../services/recommendationService";
 import { jobsService } from "../../services/jobsService";
 
@@ -173,6 +173,12 @@ export function Dashboard() {
               <Link to="/roadmap" className="block">
                 <GlowButton variant="secondary" className="w-full mt-6" glow={false}>
                   View All Roadmaps
+                  <ArrowRight className="w-4 h-4 ml-2 inline" />
+                </GlowButton>
+              </Link>
+              <Link to="/roadmap-catalog" className="block">
+                <GlowButton variant="primary" className="w-full mt-3">
+                  Browse Catalog
                   <ArrowRight className="w-4 h-4 ml-2 inline" />
                 </GlowButton>
               </Link>

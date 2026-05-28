@@ -9,7 +9,12 @@
     "start": "node -r module-alias/register dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
+    "seed:roadmaps": "tsx scripts/seedRoadmapCatalog.ts",
+    "db:create-roadmap-index": "tsx scripts/createTextIndexes.ts",
+    "sync-admin-email": "tsx scripts/syncAdminEmail.ts",
+    "verify-admin-email": "tsx scripts/verifyAdminEmail.ts",
     "test": "jest --runInBand --detectOpenHandles --coverage",
     "ci": "npm run build && npm test"
   },
