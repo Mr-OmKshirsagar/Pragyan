@@ -3,6 +3,7 @@ import axios from 'axios';
 import { prisma } from '@/lib/prisma';
 import { NotFoundError } from '@/utils/errors';
 import { recommendationEngineService } from '@/services/recommendation-engine';
+import { roadmapGenerationService } from '@/services/roadmap-generation';
 
 interface CareerMatchResult {
   career: string;
@@ -73,36 +74,17 @@ export class AIRecommendationService {
     return scored;
   }
 
-  async generatePersonalizedRoadmap(
-    userId: string,
-    careerGoal: string,
-    skillLevel: string
-  ) {
+  async generatePersonalizedRoadmap(userId: string, careerGoal: string, skillLevel: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        progress: true,
-      },
+      select: { id: true },
     });
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const recommended = await this.getRecommendedRoadmaps(careerGoal);
-
-    const filteredRoadmaps = recommended.filter((roadmap) => {
-      if (skillLevel === 'beginner') {
-        return roadmap.level === 'beginner';
-      }
-      if (skillLevel === 'intermediate') {
-        return roadmap.level === 'intermediate' || roadmap.level === 'beginner';
-      }
-      return true;
-    });
-
-    const alreadyStarted = user.progress.map((entry) => entry.roadmapId);
-    return filteredRoadmaps.filter((roadmap) => !alreadyStarted.includes(roadmap.id));
+    return roadmapGenerationService.generatePersonalizedRoadmap(userId, careerGoal, skillLevel);
   }
   async getPythonCareerRecommendation(skills: string[]) {
   try {

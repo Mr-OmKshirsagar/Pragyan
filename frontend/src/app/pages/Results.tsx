@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { ArrowRight, Brain, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
@@ -9,6 +9,7 @@ import { GlassCard } from "../components/GlassCard";
 import { GlowButton } from "../components/GlowButton";
 import { SectionHeader } from "../components/SectionHeader";
 import { assessmentService } from "../../services/assessmentService";
+import { aiService } from "../../services/aiService";
 import type { AdaptiveCareerMatch, AdaptiveSubmitResponse, LLMCareerRecommendation } from "../../types/api";
 import { toCareerSlug } from "../utils/careerSlug";
 
@@ -41,8 +42,10 @@ function deriveRadarData(summary: AdaptiveSubmitResponse["summary"]) {
 
 export function Results() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { adaptiveResult, llmRecommendation } = (location.state || {}) as LocationState;
   const [result, setResult] = useState<AdaptiveSubmitResponse | null>(adaptiveResult || null);
+  const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -83,6 +86,19 @@ export function Results() {
   const secondary = result?.summary?.secondaryMatches || result?.topMatches?.slice(1) || [];
   const radarData = useMemo(() => deriveRadarData(result?.summary as AdaptiveSubmitResponse["summary"]), [result?.summary]);
   const confidence = Math.max(0, Math.min(100, Number(result?.confidence || result?.summary?.confidence || 0)));
+  const recommendedCareer = topMatch?.career || result?.summary?.suggestedCareers?.[0] || "career-journey";
+  const recommendedLevel = result?.ai?.targetLevel || (confidence >= 85 ? "advanced" : confidence >= 70 ? "intermediate" : "beginner");
+
+  async function handleStartJourney() {
+    setGeneratingRoadmap(true);
+    try {
+      await aiService.generatePersonalizedRoadmap(recommendedCareer, recommendedLevel);
+    } catch {
+      // Fall through and still open the journey page; the backend has a deterministic fallback.
+    } finally {
+      navigate(`/journey/${toCareerSlug(recommendedCareer)}`);
+    }
+  }
   const normalizedLLMRecommendation = llmRecommendation && "data" in llmRecommendation
     ? llmRecommendation.data
     : llmRecommendation;
@@ -226,11 +242,9 @@ export function Results() {
                     <ArrowRight className="w-4 h-4 ml-2 inline" />
                   </GlowButton>
                 </Link>
-                <Link to={`/journey/${toCareerSlug(topMatch?.career || result?.summary?.suggestedCareers?.[0] || "career-journey")}`}>
-                  <GlowButton variant="secondary" className="w-full">
-                    Start Career Journey
-                  </GlowButton>
-                </Link>
+                <GlowButton variant="secondary" className="w-full" onClick={() => void handleStartJourney()} disabled={generatingRoadmap}>
+                  {generatingRoadmap ? "Generating roadmap..." : "Start Career Journey"}
+                </GlowButton>
               </div>
             </div>
           </div>
