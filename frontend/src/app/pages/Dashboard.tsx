@@ -29,6 +29,15 @@ import { jobsService } from "../../services/jobsService";
 import { journeyService } from "../../services/journeyService";
 import { xpService } from "../../services/xpService";
 import type { JobFeedItem, JourneyDashboardSnapshot, JourneyJobEligibility, XpProgression } from "@/types/api";
+import { 
+  staggerContainerVariants, 
+  staggerItemVariants,
+  listVariants,
+  listItemVariants,
+  slideInLeftVariants,
+  slideInRightVariants,
+  fadeInVariants
+} from "../../utils/animations";
 
 type SidebarItem = {
   label: string;
@@ -104,17 +113,38 @@ function computeUserLevel({
   };
 }
 
-function SkillStrengthBar({ skill, mastery }: { skill: string; mastery: number }) {
+function SkillStrengthBar({ skill, mastery, delay = 0 }: { skill: string; mastery: number; delay?: number }) {
   return (
-    <div className="space-y-2 rounded-3xl border border-white/10 bg-white/5 p-4">
+    <motion.div
+      className="space-y-2 rounded-3xl border border-white/10 bg-white/5 p-4"
+      variants={staggerItemVariants}
+      initial="initial"
+      whileInView="animate"
+      viewport={{ once: true }}
+      transition={{ ...staggerItemVariants.animate.transition, delay }}
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-foreground">{skill}</p>
-        <p className="text-sm font-semibold text-secondary">{mastery}%</p>
+        <motion.p
+          className="text-sm font-semibold text-secondary"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: delay + 0.2 }}
+        >
+          {mastery}%
+        </motion.p>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-cyan-400 to-emerald-400" style={{ width: `${Math.max(8, Math.min(mastery, 100))}%` }} />
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-violet-500 via-cyan-400 to-emerald-400"
+          initial={{ width: 0 }}
+          whileInView={{ width: `${Math.max(8, Math.min(mastery, 100))}%` }}
+          viewport={{ once: true }}
+          transition={{ delay: delay + 0.3, duration: 0.8, ease: "easeOut" }}
+        />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -353,7 +383,7 @@ export function Dashboard() {
                 </div>
 
                 <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(260px,0.75fr)]">
-                  <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-5">
+                  <div className="rounded-[1.75rem] border border-white/10 bg-transparent p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-5">
                       <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Job role focus</p>
@@ -375,19 +405,17 @@ export function Dashboard() {
                   </div>
 
                   <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Streak</p>
-                    <div className="mt-3 flex items-end gap-3">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 text-amber-200 shadow-[0_0_30px_rgba(251,191,36,0.12)]">
-                        <Flame className="h-7 w-7" />
-                      </div>
-                      <div>
-                        <p className="text-4xl font-bold tracking-tight text-foreground">{streak}</p>
-                        <p className="text-sm text-muted-foreground">day streak</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Progress</p>
+                    <div className="mt-3 flex items-center justify-center">
+                      <div className="mx-auto flex h-[220px] w-[220px] items-center justify-center rounded-full border-2 border-white/10 bg-background/50 p-4 shadow-[0_0_60px_rgba(34,211,238,0.08)]">
+                        <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-white/10" style={{ background: `conic-gradient(rgba(168,85,247,0.95) ${Math.max(0, Math.min(100, completion)) * 3.6}deg, rgba(148,163,184,0.12) 0deg)` }}>
+                          <div className="flex h-[160px] w-[160px] flex-col items-center justify-center rounded-full border border-white/10 bg-[#0b1020]/95 text-center">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Complete</p>
+                            <p className="mt-1 text-4xl font-bold bg-gradient-to-r from-violet-300 via-cyan-200 to-white bg-clip-text text-transparent">{Math.round(completion)}%</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Keep the streak alive to strengthen your roadmap momentum.
-                    </p>
                   </div>
                 </div>
 
@@ -408,30 +436,27 @@ export function Dashboard() {
               />
             ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-              <GlassCard glow glowColor="primary" className="relative overflow-hidden border-white/10 bg-card/55 p-4 sm:p-6 h-[320px]">
+            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
+              <GlassCard glow glowColor="primary" className="relative overflow-hidden border border-[rgba(139,92,246,0.25)] bg-[rgba(15,23,42,0.65)] p-6 sm:p-8 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_30%)]" />
                 <div className="relative z-10 space-y-4">
-                  <div className="flex items-center justify-between gap-4">
-                      <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Progress</p>
+                  <div className="w-full space-y-3 rounded-[1.5rem] border border-[rgba(139,92,246,0.2)] bg-[rgba(2,6,23,0.65)] p-6 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Day {currentDay}</p>
+                    <h3 className="mt-2 text-xl font-semibold text-foreground">{currentDayData?.title || `What you'll learn today`}</h3>
+                    <ul className="mt-3 max-w-xl space-y-2 text-sm text-muted-foreground list-disc list-inside">
+                      {(todaysMissionTasks && todaysMissionTasks.length ? todaysMissionTasks : [
+                        "Understand the core concept",
+                        "Watch the recommended video",
+                        "Complete a short practice task"
+                      ]).map((task, i) => (
+                        <li key={i}>{typeof task === "string" ? task : task.title || task.name || task.description || "Practice the concept"}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 flex items-center gap-3">
+                      <Link to={`/assistant?prompt=${encodeURIComponent(`Help me complete today's mission: ${todaysMissionFocus}`)}`}>
+                        <GlowButton variant="primary" size="md">Let’s start<ArrowRight className="ml-2 inline h-5 w-5" /></GlowButton>
+                      </Link>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                    <div className="mx-auto flex h-[180px] w-[180px] items-center justify-center rounded-full border border-white/10 bg-background/50 p-4 shadow-[0_0_60px_rgba(34,211,238,0.06)] md:mx-0">
-                      <div className="flex h-full w-full items-center justify-center rounded-full border border-white/10" style={{ background: `conic-gradient(rgba(168,85,247,0.95) ${Math.max(0, Math.min(100, completion)) * 3.6}deg, rgba(148,163,184,0.12) 0deg)` }}>
-                        <div className="flex h-[120px] w-[120px] flex-col items-center justify-center rounded-full border border-white/10 bg-[#0b1020]/95 text-center">
-                          <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Complete</p>
-                          <p className="mt-1 text-4xl font-bold bg-gradient-to-r from-violet-300 via-cyan-200 to-white bg-clip-text text-transparent">{Math.round(completion)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                      <div className="grid flex-1 gap-3 sm:grid-cols-2">
-                      <div className="p-0 sm:col-span-2">
-                        <LevelBoard progression={xpProgression} level={displayLevel} xp={currentXp} percent={xpProgressPercent} xpToNext={Math.max(0, nextThreshold - currentXp)} />
-                      </div>
-                    </div>
-                      
                   </div>
                 </div>
               </GlassCard>
@@ -441,58 +466,32 @@ export function Dashboard() {
                 <div className="relative z-10 space-y-5">
                   <div><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Skill strengths</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">What you’re strongest at</h2></div>
                   <div className="space-y-4">
-                    {(topSkillStrengths.length ? topSkillStrengths : skillRecommendations.slice(0, 4).map((skill) => ({ skill: skill.skill, mastery: Math.max(45, Math.min(95, Math.round(skill.confidence))) }))).map((skill) => <SkillStrengthBar key={skill.skill} skill={skill.skill} mastery={skill.mastery} />)}
+                    {(topSkillStrengths.length ? topSkillStrengths : skillRecommendations.slice(0, 4).map((skill) => ({ skill: skill.skill, mastery: Math.max(45, Math.min(95, Math.round(skill.confidence))) }))).map((skill, idx) => <SkillStrengthBar key={skill.skill} skill={skill.skill} mastery={skill.mastery} delay={idx * 0.05} />)}
                   </div>
                 </div>
               </GlassCard>
             </div>
 
-            <GlassCard glow glowColor="primary" className="relative overflow-hidden border-white/10 bg-card/55 p-6 sm:p-8">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.12),transparent_26%)]" />
-              <div className="relative z-10 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200"><Flame className="h-4 w-4" />Today’s Mission</div>
-                  <div className="space-y-2"><p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">Day {currentDay}</p><h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{currentDayData?.title || todaysMissionFocus}</h2><p className="max-w-2xl text-sm text-muted-foreground sm:text-base">{currentDayData?.focus || todaysMissionFocus}</p></div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Theory resource</p><p className="mt-2 text-base font-medium text-foreground">{missionTheory?.title || "W3Schools HTML Forms"}</p><p className="mt-1 text-sm text-muted-foreground">{missionTheory?.provider || "W3Schools"}</p></div>
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Video resource</p><p className="mt-2 text-base font-medium text-foreground">{missionVideo?.title || "HTML Forms Tutorial"}</p><p className="mt-1 text-sm text-muted-foreground">{missionVideo?.provider || "YouTube"}</p></div>
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Estimated time</p><p className="mt-2 text-base font-medium text-foreground">{todaysMissionTime || 45} minutes</p><p className="mt-1 text-sm text-muted-foreground">{Math.max(1, todaysMissionTasks.length)} tasks queued</p></div>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Today’s XP rewards</p>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center justify-between"><p className="text-sm text-foreground">Theory</p><p className="text-sm text-muted-foreground">+{missionRewards.theory || 30} XP</p></div>
-                      <div className="flex items-center justify-between"><p className="text-sm text-foreground">Watch Video</p><p className="text-sm text-muted-foreground">+{missionRewards.video || 20} XP</p></div>
-                      <div className="flex items-center justify-between"><p className="text-sm text-foreground">Practice Task</p><p className="text-sm text-muted-foreground">+{missionRewards.practice || 50} XP</p></div>
-                      <div className="flex items-center justify-between"><p className="text-sm text-foreground">Quiz Passed</p><p className="text-sm text-muted-foreground">+{missionRewards.quiz || 100} XP</p></div>
-                      <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3"><p className="text-sm font-semibold">Total</p><p className="text-sm font-semibold">+{(missionRewards.theory || 30) + (missionRewards.video || 20) + (missionRewards.practice || 50) + (missionRewards.quiz || 100)} XP</p></div>
-                    </div>
-                  </div>
-                  <Link to={`/assistant?prompt=${encodeURIComponent(`Help me complete today's mission: ${todaysMissionFocus}`)}`}><GlowButton variant="primary" size="lg">Continue Day {currentDay < 10 ? `0${currentDay}` : currentDay}<ArrowRight className="ml-2 inline h-5 w-5" /></GlowButton></Link>
-                </div>
-                <div className="rounded-[1.6rem] border border-white/10 bg-background/35 p-5 backdrop-blur-xl">
-                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Learning checklist</p>
-                  <div className="mt-4 space-y-3">
-                    {todaysMissionTasks.slice(0, 4).map((task, index) => (
-                      <div key={task.id || task.title} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <CheckCircle2 className={cn("mt-0.5 h-4 w-4", task.completed ? "text-emerald-300" : "text-cyan-300")} />
-                        <div className="min-w-0"><p className="text-sm font-medium text-foreground">{task.title}</p><p className="text-xs text-muted-foreground">Step {index + 1} · {task.type} · {task.estimatedMinutes} min</p></div>
-                      </div>
-                    ))}
-                    {!todaysMissionTasks.length ? <p className="text-sm text-muted-foreground">Daily tasks will appear once the roadmap snapshot loads.</p> : null}
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
+            
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-              <GlassCard glow glowColor="secondary" className="border-white/10 bg-card/55 p-6 sm:p-8">
-                <div className="space-y-4"><div><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Placement readiness</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{Math.round(readinessScore)}%</h2></div><AnimatedProgress value={Math.round(readinessScore)} max={100} showLabel /><p className="text-sm text-muted-foreground">{progressHint}</p></div>
-              </GlassCard>
-              <GlassCard glow glowColor="primary" className="border-white/10 bg-card/55 p-6 sm:p-8">
-                <div className="space-y-4"><div><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Eligible roles</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Jobs you can pursue now</h2></div><div className="space-y-3">{eligibleRoles.length ? eligibleRoles.map((job) => <div key={job.id} className="rounded-3xl border border-white/10 bg-white/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-foreground">{job.title}</p><p className="mt-1 text-sm text-muted-foreground">{job.company} · {job.location}</p></div><span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">{job.matchScore}%</span></div></div>) : <p className="text-sm text-muted-foreground">Eligible roles will appear once enough skills are unlocked.</p>}</div></div>
-              </GlassCard>
-            </div>
+            <motion.div
+              className="grid gap-6 lg:grid-cols-[1fr_1fr]"
+              variants={staggerContainerVariants}
+              initial="initial"
+              whileInView="animate"
+              viewport={{ once: true }}
+            >
+              <motion.div variants={staggerItemVariants} initial="initial" whileInView="animate" viewport={{ once: true }}>
+                <GlassCard glow glowColor="secondary" className="border-white/10 bg-card/55 p-6 sm:p-8">
+                  <div className="space-y-4"><div><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Placement readiness</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{Math.round(readinessScore)}%</h2></div><AnimatedProgress value={Math.round(readinessScore)} max={100} showLabel /><p className="text-sm text-muted-foreground">{progressHint}</p></div>
+                </GlassCard>
+              </motion.div>
+              <motion.div variants={staggerItemVariants} initial="initial" whileInView="animate" viewport={{ once: true }}>
+                <GlassCard glow glowColor="primary" className="border-white/10 bg-card/55 p-6 sm:p-8">
+                  <div className="space-y-4"><div><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Eligible roles</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Jobs you can pursue now</h2></div><motion.div className="space-y-3" variants={listVariants} initial="initial" whileInView="animate" viewport={{ once: true }}>{eligibleRoles.length ? eligibleRoles.map((job, idx) => <motion.div key={job.id} className="rounded-3xl border border-white/10 bg-white/5 p-4" variants={listItemVariants}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-foreground">{job.title}</p><p className="mt-1 text-sm text-muted-foreground">{job.company} · {job.location}</p></div><span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">{job.matchScore}%</span></div></motion.div>) : <p className="text-sm text-muted-foreground">Eligible roles will appear once enough skills are unlocked.</p>}</motion.div></div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
           </div>
         </div>
       </div>

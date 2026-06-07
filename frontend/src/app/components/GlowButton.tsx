@@ -1,11 +1,13 @@
 import { motion } from "motion/react";
 import { cn } from "../utils/cn";
+import { buttonVariants } from "../../utils/animations";
 
 interface GlowButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "accent" | "pink";
   size?: "sm" | "md" | "lg";
   glow?: boolean;
   children: React.ReactNode;
+  loading?: boolean;
 }
 
 export function GlowButton({
@@ -14,13 +16,14 @@ export function GlowButton({
   glow = true,
   className,
   children,
+  loading = false,
   ...props
 }: GlowButtonProps) {
   const variantClasses = {
-    primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(139,92,246,0.4)]",
-    secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-[0_0_20px_rgba(6,182,212,0.4)]",
-    accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-[0_0_20px_rgba(59,130,246,0.4)]",
-    pink: "bg-pink text-pink-foreground hover:bg-pink/90 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
+    primary: "bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-500 hover:to-purple-600 shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_40px_rgba(139,92,246,0.6)]",
+    secondary: "bg-gradient-to-r from-cyan-600 to-cyan-700 text-white hover:from-cyan-500 hover:to-cyan-600 shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:shadow-[0_0_40px_rgba(6,182,212,0.6)]",
+    accent: "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-500 hover:to-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:shadow-[0_0_40px_rgba(59,130,246,0.6)]",
+    pink: "bg-gradient-to-r from-pink-600 to-pink-700 text-white hover:from-pink-500 hover:to-pink-600 shadow-[0_0_20px_rgba(236,72,153,0.4)] hover:shadow-[0_0_40px_rgba(236,72,153,0.6)]"
   };
 
   const sizeClasses = {
@@ -32,18 +35,30 @@ export function GlowButton({
   return (
     <motion.button
       className={cn(
-        "relative rounded-lg font-medium transition-all duration-300",
+        "relative rounded-lg font-semibold transition-all duration-300 overflow-hidden",
         variantClasses[variant],
         sizeClasses[size],
-        glow && "hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
         className
       )}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      transition={{ duration: 0.2 }}
+      variants={buttonVariants}
+      whileHover={!loading ? "whileHover" : undefined}
+      whileTap={!loading ? "whileTap" : undefined}
+      initial="initial"
+      disabled={loading}
       {...props}
     >
-      {children}
+      <motion.div
+        className="absolute inset-0 opacity-0 group-hover:opacity-20"
+        animate={loading ? { opacity: [0.2, 0.4, 0.2] } : {}}
+        transition={{ duration: 1.5, repeat: loading ? Infinity : 0 }}
+      />
+      <motion.span
+        animate={loading ? { opacity: [1, 0.6, 1] } : {}}
+        transition={{ duration: 1.5, repeat: loading ? Infinity : 0 }}
+      >
+        {children}
+      </motion.span>
     </motion.button>
   );
 }
