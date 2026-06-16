@@ -22,7 +22,7 @@ const rateLimitMessage = { success: false, message: 'Too many requests' };
 
 const authAttemptLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
-	max: isDevelopment ? 200 : 50,
+	max: isDevelopment ? 100 : 5,
 	standardHeaders: true,
 	legacyHeaders: false,
 	message: rateLimitMessage,

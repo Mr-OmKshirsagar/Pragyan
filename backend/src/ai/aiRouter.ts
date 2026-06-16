@@ -1,6 +1,8 @@
 import { buildAssessmentPrompt, buildMentorPrompt, buildResumeAnalysisPrompt, buildRoadmapPrompt, buildSummaryPrompt } from './promptBuilder';
 import { geminiService, type GeminiTaskType } from './gemini.service';
 import { groqService, type GroqTaskType } from './groq.service';
+import { SAFE_AI_SECURITY_RESPONSE, inspectPromptSafety, sanitizePromptForAI, validateAIResponse } from '@/security/ai/aiFirewall';
+import { logAIProviderAttack } from '@/security/ai/aiAudit';
 
 export type AIRequestTask =
   | GeminiTaskType
@@ -59,7 +61,23 @@ function isGroqTask(taskType: AIRequestTask): taskType is GroqTaskType {
 }
 
 export async function routeAI(taskType: AIRequestTask, payload: AIRequestPayload = {}): Promise<AIRouteResult> {
-  const prompt = resolvePrompt(taskType, payload);
+  const prompt = sanitizePromptForAI(resolvePrompt(taskType, payload));
+  const inspection = inspectPromptSafety(prompt);
+
+  if (inspection.blocked) {
+    logAIProviderAttack({
+      type: inspection.type,
+      matchedPattern: inspection.matchedPattern,
+      taskType,
+    });
+
+    return {
+      value: SAFE_AI_SECURITY_RESPONSE,
+      provider: 'gemini',
+      model: 'security-firewall',
+      cacheHit: false,
+    };
+  }
 
   if (isGeminiTask(taskType)) {
     const result = await geminiService.generate(taskType, prompt, {
@@ -71,7 +89,7 @@ export async function routeAI(taskType: AIRequestTask, payload: AIRequestPayload
       temperature: payload.temperature,
     });
 
-    return result;
+    return { ...result, value: validateAIResponse(result.value) };
   }
 
   if (isGroqTask(taskType)) {
@@ -81,7 +99,7 @@ export async function routeAI(taskType: AIRequestTask, payload: AIRequestPayload
       temperature: payload.temperature,
     });
 
-    return result;
+    return { ...result, value: validateAIResponse(result.value) };
   }
 
   const result = await groqService.generate('summary', prompt, {
@@ -90,7 +108,7 @@ export async function routeAI(taskType: AIRequestTask, payload: AIRequestPayload
     temperature: payload.temperature,
   });
 
-  return result;
+  return { ...result, value: validateAIResponse(result.value) };
 }
 
 export default {
