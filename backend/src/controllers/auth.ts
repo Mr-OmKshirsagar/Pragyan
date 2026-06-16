@@ -14,19 +14,30 @@ import {
 import { asyncHandler } from '@/middleware/errorHandler';
 import { isGoogleOAuthConfigured, isGitHubOAuthConfigured } from '@/config/passport';
 import { config } from '@/config/env';
+import { clearAuthCookies, readRefreshTokenCookie, setAuthCookies } from '@/security';
+import { logSecurityEventFromRequest } from '@/security/audit.security';
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const input: RegisterInput = req.body;
   const result = await authService.register(input);
+  setAuthCookies(res, result);
+  logSecurityEventFromRequest(req, 'LOGIN_SUCCESS', { method: 'register', email: input.email });
 
   return sendSuccess(res, result, 201, 'User registered successfully');
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const input: LoginInput = req.body;
-  const result = await authService.login(input);
+  try {
+    const result = await authService.login(input);
+    setAuthCookies(res, result);
+    logSecurityEventFromRequest(req, 'LOGIN_SUCCESS', { method: 'password', email: input.email });
 
-  return sendSuccess(res, result, 200, 'Login successful');
+    return sendSuccess(res, result, 200, 'Login successful');
+  } catch (error) {
+    logSecurityEventFromRequest(req, 'LOGIN_FAILURE', { method: 'password', email: input.email });
+    throw error;
+  }
 });
 
 export const me = asyncHandler(async (req: Request, res: Response) => {
@@ -50,24 +61,27 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const refreshToken = req.body.refreshToken;
+  const refreshToken = req.body.refreshToken || readRefreshTokenCookie(req.headers.cookie);
 
   if (!refreshToken) {
     return sendError(res, 400, 'Refresh token is required');
   }
 
   await authService.logout(refreshToken);
+  clearAuthCookies(res);
+  logSecurityEventFromRequest(req, 'LOGOUT');
   return sendSuccess(res, {}, 200, 'Logged out successfully');
 });
 
 export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
-  const { refreshToken: token } = req.body;
+  const token = req.body.refreshToken || readRefreshTokenCookie(req.headers.cookie);
 
   if (!token) {
     return sendError(res, 400, 'Refresh token is required');
   }
 
   const result = await authService.refreshAccessToken(token);
+  setAuthCookies(res, result);
   return sendSuccess(res, result, 200, 'Access token refreshed');
 });
 
