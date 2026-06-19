@@ -13,6 +13,7 @@ import { configurePassport } from '@/config/passport';
 // Routes
 import authRoutes from '@/routes/auth';
 import roadmapRoutes from '@/routes/roadmap';
+import assessmentRoadmapRoutes from '@/routes/assessmentRoadmap';
 import progressRoutes from '@/routes/progress';
 import assessmentRoutes from '@/routes/assessment';
 import aiRoutes from '@/routes/ai';
@@ -128,6 +129,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/roadmap', assessmentRoadmapRoutes);
 app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/progress', progressRoutes);
 // Protect assessment and AI endpoints with Redis-backed per-user/IP limiter (falls back to in-memory)

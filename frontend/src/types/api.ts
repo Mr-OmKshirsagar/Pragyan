@@ -29,6 +29,14 @@ export interface AuthUser {
   interests?: string[];
   education?: string | null;
   experience?: string | null;
+  currentTitle?: string | null;
+  careerTrack?: string | null;
+  tenthBoard?: string | null;
+  tenthScore?: string | null;
+  twelfthBoard?: string | null;
+  twelfthScore?: string | null;
+  currentCourse?: string | null;
+  cgpa?: string | null;
   linkedAccounts?: Array<{
     provider: string;
     providerId: string;
