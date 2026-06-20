@@ -296,8 +296,48 @@ export function Assessment() {
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
             Pragyan Assessment
           </h1>
-          <p className="text-muted-foreground">{phaseLabel(phase)}</p>
-        </header>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Answer thoughtfully - our AI adapts questions based on your responses
+          </p>
+        </motion.div>
+
+        {/* Progress */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <GlassCard>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Overall Progress</span>
+                <span className="font-medium">
+                  Question {currentQuestion + 1} of {totalQuestions}
+                </span>
+              </div>
+              <AnimatedProgress value={progress} max={100} showLabel={false} />
+
+              {/* Category Pills */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {categories.map((cat, i) => (
+                  <div
+                    key={cat}
+                    className={`px-3 py-1 rounded-full text-xs transition-all ${
+                      i === currentCategory
+                        ? "bg-primary/20 text-primary border border-primary/30"
+                        : i < currentCategory
+                        ? "bg-secondary/20 text-secondary border border-secondary/30"
+                        : "bg-muted/20 text-muted-foreground border border-border"
+                    }`}
+                  >
+                    {i < currentCategory && <Check className="w-3 h-3 inline mr-1" />}
+                    {cat}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </GlassCard>
+        </motion.div>
 
         <AnimatePresence mode="wait">
           {phase === "onboarding" && (

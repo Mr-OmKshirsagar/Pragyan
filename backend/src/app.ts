@@ -1,14 +1,23 @@
 // src/app.ts
 
 import express, { Application, Request, Response } from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
 import morgan from 'morgan';
 import session from 'express-session';
 import passport from 'passport';
 import { config } from '@/config/env';
 import { errorHandler } from '@/middleware/errorHandler';
 import { configurePassport } from '@/config/passport';
+import {
+  aiApiRateLimiter,
+  authRateLimiter,
+  generalApiRateLimiter,
+  requestSizeLimits,
+  sanitizeRequest,
+  secureCors,
+  secureHeaders,
+} from '@/security';
+import { aiFirewall } from '@/security/ai/aiFirewall';
+import { aiUsageLimiter } from '@/security/ai/aiUsageLimiter';
 
 // Routes
 import authRoutes from '@/routes/auth';
@@ -45,7 +54,7 @@ configurePassport();
 
 // ============ SECURITY MIDDLEWARE ============
 
-app.use(helmet());
+app.use(secureHeaders);
 
 app.set('trust proxy', 1);
 
@@ -65,41 +74,18 @@ app.use(
   })
 );
 
-// Temporary debug: print session / cookie config
-console.log('[Session Config] SESSION_SECRET set?:', !!config.oauth.sessionSecret);
-console.log('[Session Config] nodeEnv:', config.nodeEnv);
-console.log('[Session Config] cookie.secure:', config.nodeEnv === 'production');
-console.log('[Session Config] cookie.sameSite:', 'lax');
-console.log('[Session Config] cookie.httpOnly:', true);
-console.log('[Session Config] saveUninitialized:', false);
-console.log('[Session Config] resave:', false);
-
 app.use(passport.initialize());
 app.use(passport.session());
 
 const isDevelopment = config.nodeEnv !== 'production';
 
 // CORS
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || config.cors.allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error('CORS blocked: origin not allowed'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+app.use(secureCors);
 
 // ============ BODY PARSING ============
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(requestSizeLimits);
+app.use(sanitizeRequest);
 
 // ============ LOGGING ============
 
@@ -125,6 +111,12 @@ app.post('/api/top-career', (_req: Request, res: Response) => {
 });
 
 // API routes
+app.use('/api', generalApiRateLimiter);
+app.use('/api/auth', authRateLimiter);
+app.use('/api/ai', aiApiRateLimiter, aiUsageLimiter, aiFirewall);
+app.use('/api/mentor', aiApiRateLimiter, aiUsageLimiter, aiFirewall);
+app.use('/api/recommendations/intelligence', aiApiRateLimiter, aiUsageLimiter, aiFirewall);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/skills', skillRoutes);

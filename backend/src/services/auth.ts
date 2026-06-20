@@ -9,6 +9,7 @@ import { hashPassword, comparePasswords } from '@/utils/password';
 import { sendPasswordResetOTP } from '@/services/emailService';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt';
 import { ConflictError, UnauthorizedError, NotFoundError, BadRequestError } from '@/utils/errors';
+import { logSecurityEvent } from '@/security/audit.security';
 import {
   RegisterInput,
   LoginInput,
@@ -155,6 +156,34 @@ function buildUserSession(user: {
 }
 
 export class AuthService {
+  private refreshTokenExpiresAt() {
+    return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  private async issueRefreshToken(userId: string): Promise<string> {
+    let token = generateRefreshToken(userId);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await prisma.refreshToken.create({
+          data: {
+            token,
+            userId,
+            expiresAt: this.refreshTokenExpiresAt(),
+          },
+        });
+        return token;
+      } catch (err: any) {
+        if (err?.code !== 'P2002' || attempt === 1) {
+          throw err;
+        }
+        token = generateRefreshToken(userId);
+      }
+    }
+
+    throw new Error('Unable to issue refresh token');
+  }
+
   private async upsertCurrentUserSnapshot(user: {
     _id: ObjectId;
     email: string;
@@ -316,31 +345,7 @@ export class AuthService {
         },
       });
 
-      // Create refresh token with Prisma (retry once on unlikely token collision)
-      let refreshTokenStr = generateRefreshToken(created.id);
-      try {
-        await prisma.refreshToken.create({
-          data: {
-            token: refreshTokenStr,
-            userId: created.id,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          },
-        });
-      } catch (err: any) {
-        if (err?.code === 'P2002') {
-          // Token collision - generate a new token and retry once
-          refreshTokenStr = generateRefreshToken(created.id);
-          await prisma.refreshToken.create({
-            data: {
-              token: refreshTokenStr,
-              userId: created.id,
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            },
-          });
-        } else {
-          throw err;
-        }
-      }
+      const refreshTokenStr = await this.issueRefreshToken(created.id);
 
       // Try non-blocking snapshot upsert; do not fail registration if this fails
       try {
@@ -415,34 +420,11 @@ export class AuthService {
       role: user.role as 'USER' | 'ADMIN',
     });
 
-    let refreshToken = generateRefreshToken(user.id);
+    let refreshToken = '';
 
     // Use MongoDB driver directly to avoid transaction requirement
     try {
-      // Create refresh token via Prisma to avoid MongoClient SRV DNS issues
-      try {
-        await prisma.refreshToken.create({
-          data: {
-            token: refreshToken,
-            userId: user.id,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          },
-        });
-      } catch (err: any) {
-        if (err?.code === 'P2002') {
-          // Collision - try once with a fresh token
-          refreshToken = generateRefreshToken(user.id);
-          await prisma.refreshToken.create({
-            data: {
-              token: refreshToken,
-              userId: user.id,
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            },
-          });
-        } else {
-          throw err;
-        }
-      }
+      refreshToken = await this.issueRefreshToken(user.id);
 
       // Attempt to update snapshot but do not fail login if snapshot upsert fails
       try {
@@ -590,34 +572,12 @@ export class AuthService {
         userId: user.id,
       });
 
-      let refreshToken = generateRefreshToken(user.id);
-      try {
-        console.log('[OAuth:loginWithOAuth:refreshTokenCreate]', {
-          userId: user.id,
-          provider: profile.provider,
-          providerId: profile.providerId,
-        });
-        await prisma.refreshToken.create({
-          data: {
-            token: refreshToken,
-            userId: user.id,
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          },
-        });
-      } catch (err: any) {
-        if (err?.code === 'P2002') {
-          refreshToken = generateRefreshToken(user.id);
-          await prisma.refreshToken.create({
-            data: {
-              token: refreshToken,
-              userId: user.id,
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            },
-          });
-        } else {
-          throw err;
-        }
-      }
+      console.log('[OAuth:loginWithOAuth:refreshTokenCreate]', {
+        userId: user.id,
+        provider: profile.provider,
+        providerId: profile.providerId,
+      });
+      const refreshToken = await this.issueRefreshToken(user.id);
 
       try {
         await this.upsertCurrentUserSnapshot(
@@ -912,26 +872,29 @@ export class AuthService {
       throw new NotFoundError('User not found');
     }
 
-    const existing = await prisma.socialAccount.findFirst({
-      where: { userId, provider },
-    });
+    const [existing, linkedCount, linkedAccounts] = await Promise.all([
+      prisma.socialAccount.findFirst({
+        where: { userId, provider },
+      }),
+      prisma.socialAccount.count({ where: { userId } }),
+      prisma.socialAccount.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, provider: true, providerId: true },
+      }),
+    ]);
 
     if (!existing) {
       throw new NotFoundError('Linked account not found');
     }
 
-    const linkedCount = await prisma.socialAccount.count({ where: { userId } });
     if (linkedCount <= 1 && user.provider !== 'local') {
       throw new BadRequestError('You must keep at least one login method linked');
     }
 
     await prisma.socialAccount.delete({ where: { id: existing.id } });
 
-    const remaining = await prisma.socialAccount.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-      select: { provider: true, providerId: true },
-    });
+    const remaining = linkedAccounts.filter((account) => account.id !== existing.id);
 
     await prisma.user.update({
       where: { id: userId },
@@ -1116,7 +1079,18 @@ export class AuthService {
       where: { token: refreshToken },
     });
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+    if (!storedToken) {
+      await prisma.refreshToken.deleteMany({ where: { userId: decoded.id } }).catch(() => undefined);
+      void logSecurityEvent({
+        event: 'TOKEN_REPLAY_DETECTED',
+        userId: decoded.id,
+        metadata: { reason: 'refresh_token_not_found' },
+      });
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } }).catch(() => undefined);
       throw new UnauthorizedError('Refresh token expired');
     }
 
@@ -1133,9 +1107,18 @@ export class AuthService {
       email: user.email,
       role: user.role as 'USER' | 'ADMIN',
     });
+    const newRefreshToken = await this.issueRefreshToken(user.id);
+    await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+
+    void logSecurityEvent({
+      event: 'TOKEN_REFRESH',
+      userId: user.id,
+      metadata: { rotated: true },
+    });
 
     return {
       accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
     };
   }
 
@@ -1222,23 +1205,25 @@ export class AuthService {
       throw new BadRequestError('Password reset verification is required or has expired');
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const [user, hashedPassword] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      hashPassword(input.newPassword),
+    ]);
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const hashedPassword = await hashPassword(input.newPassword);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        updatedAt: new Date(),
-      },
-    });
-
-    await prisma.passwordResetOTP.deleteMany({ where: { email } });
+    await Promise.all([
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          updatedAt: new Date(),
+        },
+      }),
+      prisma.passwordResetOTP.deleteMany({ where: { email } }),
+    ]);
 
     return { message: 'Password reset successfully. You can now sign in with your new password.' };
   }

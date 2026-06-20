@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite --port 5173"
+    "dev": "vite --port 5173",
+    "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -68,6 +69,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
+    "react-doctor": "^0.5.6",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },
