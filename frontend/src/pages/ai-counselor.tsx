@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { aiService, type AIChatMessage, type AICareerRecommendation } from "@/services/aiService";
@@ -8,13 +9,41 @@ import { notesService, type NoteFormat } from "@/features/notes/notesService";
 import { Send, Sparkles, RotateCcw, User, Download } from "lucide-react";
 
 type Role = "ai" | "user";
-interface Message { role: Role; text: string; }
+interface AIChatAction {
+  id: string;
+  label: string;
+  description?: string;
+  route: string;
+  type?: string;
+}
+interface Message { role: Role; text: string; actionRoute?: string; actionLabel?: string; actions?: AIChatAction[]; }
+interface SlashCommandDefinition {
+  command: string;
+  label: string;
+  description: string;
+  route?: string;
+  promptHint: string;
+}
 
 const SUGGESTIONS = [
   "What career suits me best?",
   "How do I improve my match score?",
   "What skills should I learn next?",
   "How long will my roadmap take?",
+];
+
+const SLASH_COMMANDS: SlashCommandDefinition[] = [
+  { command: "/guide", label: "Guide", description: "Get step-by-step career planning help.", route: "/dashboard", promptHint: "Provide a guided career planning framework with practical next steps." },
+  { command: "/teach", label: "Teach", description: "Explain a topic with examples and practice.", promptHint: "Teach the user with simple explanations, examples, and a practice task." },
+  { command: "/interview", label: "Interview", description: "Prepare me for interviews.", promptHint: "Provide interview prep advice, sample questions, and how to tell your story." },
+  { command: "/assess", label: "Assess", description: "Review my fit and assessment options.", route: "/assessments", promptHint: "Help the user understand their career fit and the assessment options in Pragyan." },
+  { command: "/roadmap", label: "Roadmap", description: "Show my learning roadmap.", route: "/roadmap", promptHint: "Focus on roadmap creation, milestones, and study plan." },
+  { command: "/resources", label: "Resources", description: "Find learning resources.", route: "/resources", promptHint: "Recommend learning resources and practical study material." },
+  { command: "/resume", label: "Resume", description: "Improve my resume or profile.", route: "/profile", promptHint: "Give resume and profile improvement advice aligned with the user’s skills and goals." },
+  { command: "/jobs", label: "Jobs", description: "Get job search and opportunity help.", route: "/career-discovery", promptHint: "Suggest job search strategies and relevant opportunity actions." },
+  { command: "/community", label: "Community", description: "Find peer learning and support.", promptHint: "Suggest peer learning, support channels, or community-style study groups." },
+  { command: "/projects", label: "Projects", description: "Get project and portfolio ideas.", route: "/career-discovery", promptHint: "Suggest portfolio projects and hands-on practice aligned to career goals." },
+  { command: "/certificates", label: "Certificates", description: "See certifications and credentials.", route: "/resources/certificates", promptHint: "Guide the user to certification and credential resources." },
 ];
 
 const NOTE_FORMATS: Array<{ label: string; value: NoteFormat }> = [
@@ -53,6 +82,24 @@ function buildInitialMessage(name: string, topCareer?: AICareerRecommendation) {
   return `Hi ${name}! I'm Pragyan AI, your personal career counselor. I can use your profile, skills, interests, and recommendations as they become available to guide your career decisions.\n\nWhat would you like to explore today?`;
 }
 
+function getSlashCommandHint(message: string): string | undefined {
+  const normalized = message.trim().split(/\s+/)[0].toLowerCase();
+  const command = SLASH_COMMANDS.find((item) => item.command === normalized);
+  return command?.promptHint;
+}
+
+function getSlashCommandRoute(message: string): string | undefined {
+  const normalized = message.trim().split(/\s+/)[0].toLowerCase();
+  return SLASH_COMMANDS.find((item) => item.command === normalized)?.route;
+}
+
+function buildUserPrompt(message: string): string {
+  const hint = getSlashCommandHint(message);
+  return hint ? `${hint}
+
+User request: ${message}` : message;
+}
+
 function toApiHistory(items: Message[]): AIChatMessage[] {
   return items.reduce<AIChatMessage[]>((history, message) => {
     const content = message.text.trim();
@@ -67,6 +114,7 @@ function toApiHistory(items: Message[]): AIChatMessage[] {
 
 export default function AICounselor() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const { data: recommendations = [] } = useQuery({
     queryKey: ["ai", "recommend-careers"],
     queryFn: aiService.getCareerRecommendations,
@@ -112,15 +160,24 @@ export default function AICounselor() {
   }, [messages, typing]);
 
   const send = async (text: string) => {
-    if (!text.trim() || typing) return;
-    const userMsg: Message = { role: "user", text: text.trim() };
+    const trimmedText = text.trim();
+    if (!trimmedText || typing) return;
+    const route = getSlashCommandRoute(trimmedText);
+    const command = SLASH_COMMANDS.find((item) => item.command === trimmedText.split(/\s+/)[0].toLowerCase());
+    const userMsg: Message = {
+      role: "user",
+      text: trimmedText,
+      actionRoute: route,
+      actionLabel: command?.label,
+    };
     const history = toApiHistory(messages);
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setTyping(true);
     try {
-      const response = await aiService.chat(text.trim(), history, chatContext);
-      const aiReply: Message = { role: "ai", text: response.reply };
+      const prompt = buildUserPrompt(trimmedText);
+      const response = await aiService.chat(prompt, history, chatContext);
+      const aiReply: Message = { role: "ai", text: response.reply, actions: response.actions };
       setMessages(prev => [...prev, aiReply]);
     } catch (error) {
       const aiReply: Message = {
@@ -138,6 +195,21 @@ export default function AICounselor() {
       e.preventDefault();
       void send(input);
     }
+  };
+
+  const recordActionClick = async (action: AIChatAction) => {
+    void aiService.recordActionEvent({
+      actionId: action.id,
+      actionType: action.type || 'general',
+      label: action.label,
+      route: action.route,
+      source: 'ai-counselor',
+    }).catch(() => undefined);
+  };
+
+  const handleActionClick = (action: AIChatAction) => {
+    recordActionClick(action);
+    navigate(action.route);
   };
 
   const reset = () => {
@@ -224,7 +296,28 @@ export default function AICounselor() {
                   {formatText(msg.text)}
                 </div>
 
-                {canDownloadNotes && (
+                {msg.role === "ai" && msg.actions?.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {msg.actions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => handleActionClick(action)}
+                        className="w-full text-left rounded-2xl border border-border bg-background px-4 py-3 transition-colors hover:border-primary hover:bg-muted"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold text-foreground">{action.label}</span>
+                          <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Action</span>
+                        </div>
+                        {action.description ? (
+                          <p className="mt-1 text-xs text-muted-foreground">{action.description}</p>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {canDownloadNotes ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -256,7 +349,7 @@ export default function AICounselor() {
                       </div>
                     )}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           );
@@ -295,6 +388,10 @@ export default function AICounselor() {
             ))}
           </div>
         )}
+
+        <div className="px-6 pb-2 pt-1 border-t border-border text-xs text-muted-foreground">
+          Use slash commands like <strong>/guide</strong>, <strong>/teach</strong>, <strong>/roadmap</strong>, <strong>/jobs</strong>, <strong>/resume</strong>, or <strong>/certificates</strong> for faster career actions.
+        </div>
 
         <div className="px-6 pb-6 pt-3 border-t border-border flex-shrink-0 flex items-center gap-3">
           <input

@@ -299,7 +299,7 @@ export function Assessment() {
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Answer thoughtfully - our AI adapts questions based on your responses
           </p>
-        </motion.div>
+        </header>
 
         {/* Progress */}
         <motion.div

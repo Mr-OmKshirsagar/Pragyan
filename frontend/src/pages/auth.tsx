@@ -166,9 +166,9 @@ export default function AuthPage() {
                   <input type="checkbox" className="h-4 w-4 rounded border-border accent-primary" />
                   Remember me
                 </label>
-                <button type="button" className="font-semibold text-primary">
+                <Link href="/forgot-password" className="font-semibold text-primary">
                   Forgot password?
-                </button>
+                </Link>
               </div>
             )}
 

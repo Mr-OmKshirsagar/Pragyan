@@ -4,7 +4,11 @@ import { ArrowRight, Mail, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { authService } from "@/services/authService";
 
+type ResetStep = "email" | "otp" | "password" | "done";
+
 export default function ForgotPassword() {
+  const [step, setStep] = useState<ResetStep>("email");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -12,16 +16,35 @@ export default function ForgotPassword() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") || "");
+    const nextEmail = String(formData.get("email") || email).trim();
+    const otp = String(formData.get("otp") || "").trim();
+    const newPassword = String(formData.get("newPassword") || "");
+    const confirmPassword = String(formData.get("confirmPassword") || "");
 
     setMessage("");
     setError("");
     setSubmitting(true);
     try {
-      const response = await authService.forgotPassword(email);
-      setMessage(response.message || "If an account exists, password reset instructions have been sent.");
+      if (step === "email") {
+        const response = await authService.forgotPassword(nextEmail);
+        setEmail(nextEmail);
+        setStep("otp");
+        setMessage(response.message || "If an account exists, a verification code has been sent.");
+      } else if (step === "otp") {
+        const response = await authService.verifyResetOtp({ email, otp });
+        setStep("password");
+        setMessage(response.message || "Verification code confirmed. You can now reset your password.");
+      } else if (step === "password") {
+        if (newPassword !== confirmPassword) {
+          setError("Passwords do not match.");
+          return;
+        }
+        const response = await authService.resetPassword({ email, newPassword });
+        setStep("done");
+        setMessage(response.message || "Password reset successfully. You can now sign in.");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to send password reset instructions.");
+      setError(err instanceof Error ? err.message : "Unable to complete password reset.");
     } finally {
       setSubmitting(false);
     }
@@ -80,42 +103,87 @@ export default function ForgotPassword() {
               Account recovery
             </p>
             <h2 className="mt-2 text-4xl font-bold tracking-normal">
-              Forgot password?
+              {step === "done" ? "Password reset" : "Forgot password?"}
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Enter your email address and Pragyan AI will send reset instructions if the account exists.
+              {step === "email" && "Enter your email address and Pragyan AI will send a reset code if the account exists."}
+              {step === "otp" && "Enter the 6-digit verification code sent to your email."}
+              {step === "password" && "Choose a new password for your Pragyan AI account."}
+              {step === "done" && "Your password has been updated. Return to sign in and continue."}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Email address</span>
-              <span className="relative block">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input name="email" className="h-11 pl-10" type="email" placeholder="you@example.com" required />
-              </span>
-            </label>
+          {step !== "done" && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {step === "email" && (
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold">Email address</span>
+                  <span className="relative block">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input name="email" className="h-11 pl-10" type="email" placeholder="you@example.com" required />
+                  </span>
+                </label>
+              )}
 
-            {message && (
-              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                {message}
-              </div>
-            )}
+              {step === "otp" && (
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold">Verification code</span>
+                  <Input
+                    name="otp"
+                    className="h-11"
+                    inputMode="numeric"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                    placeholder="123456"
+                    required
+                  />
+                </label>
+              )}
 
-            {error && (
-              <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">
-                {error}
-              </div>
-            )}
+              {step === "password" && (
+                <>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold">New password</span>
+                    <Input name="newPassword" className="h-11" type="password" placeholder="Enter new password" minLength={6} required />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold">Confirm password</span>
+                    <Input name="confirmPassword" className="h-11" type="password" placeholder="Confirm new password" minLength={6} required />
+                  </label>
+                </>
+              )}
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-border bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-md"
-            >
-              {submitting ? "Please wait..." : "Send reset instructions"} <ArrowRight className="h-4 w-4" />
-            </button>
-          </form>
+              {message && (
+                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                  {message}
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-border bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-md"
+              >
+                {submitting && "Please wait..."}
+                {!submitting && step === "email" && "Send reset code"}
+                {!submitting && step === "otp" && "Verify code"}
+                {!submitting && step === "password" && "Reset password"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
+          )}
+
+          {step === "done" && message && (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+              {message}
+            </div>
+          )}
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Remembered your password?{" "}

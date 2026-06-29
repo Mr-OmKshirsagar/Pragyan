@@ -8,6 +8,9 @@ export const profileService = {
   updateProfile(input: Partial<AuthUser>) {
     return api.put<AuthUser>("/profile", input);
   },
+  startProviderLink(provider: "github" | "google") {
+    return api.post<{ redirectUrl: string }>(`/profile/link/${provider}`);
+  },
   createProject(input: Omit<PortfolioProject, "id">) {
     return api.post<PortfolioProject>("/profile/builder/projects", input);
   },

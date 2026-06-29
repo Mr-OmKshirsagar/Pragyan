@@ -53,6 +53,18 @@ const app: Application = express();
 
 configurePassport();
 
+function logParseResumeRequest(req: Request, _res: Response, next: () => void) {
+  console.info('[Parse Resume Request]', {
+    method: req.method,
+    path: req.originalUrl,
+    ip: req.ip,
+    hasAuthorization: Boolean(req.headers.authorization),
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString(),
+  });
+  next();
+}
+
 // ============ SECURITY MIDDLEWARE ============
 
 app.use(secureHeaders);
@@ -102,6 +114,8 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 app.use('/api/health', healthRoutes);
+
+app.use('/api/assessment/hybrid/parse-resume', logParseResumeRequest);
 
 app.post('/api/top-career', (_req: Request, res: Response) => {
   res.json({

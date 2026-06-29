@@ -8,6 +8,7 @@ import Layout from "@/components/layout";
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
 import AuthSuccess from "@/pages/auth-success";
+import ForgotPassword from "@/pages/forgot-password";
 import Home from "@/pages/home";
 import Dashboard from "@/pages/dashboard";
 import Assessments from "@/pages/assessments";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/login" component={AuthPage} />
       <Route path="/signup" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <Route>
         <RequireAuth>
           <Layout>

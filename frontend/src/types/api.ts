@@ -49,6 +49,12 @@ export interface AuthUser {
   streak?: number;
   createdAt?: string;
   updatedAt?: string;
+  linkedAccounts?: Array<{
+    provider: string;
+    providerId?: string;
+    avatar?: string | null;
+    emailVerified?: boolean;
+  }>;
 }
 
 export interface AuthSession {

@@ -4,10 +4,18 @@ import {
   CheckSquare, BookOpen, User, Info, 
   Settings, Grid, Sparkles, Bell, LogOut
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+};
+
+const navItems: NavItem[] = [
   { href: "/home", label: "Home", icon: Home },
   { href: "/career-discovery", label: "Career Discovery", icon: Compass },
   { href: "/ai-counselor", label: "AI Counselor", icon: BrainCircuit },

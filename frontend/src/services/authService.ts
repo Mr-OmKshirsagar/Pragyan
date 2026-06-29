@@ -17,6 +17,10 @@ export interface AuthConfig {
   githubLoginUrl: string;
 }
 
+export interface AuthMessageResponse {
+  message?: string;
+}
+
 export const authService = {
   register(input: RegisterInput) {
     return api.post<AuthSession>("/auth/register", input, { skipRefresh: true });
@@ -37,6 +41,15 @@ export const authService = {
   },
   refreshToken(refreshToken?: string) {
     return api.post<AuthSession>("/auth/refresh-token", refreshToken ? { refreshToken } : {}, { skipRefresh: true });
+  },
+  forgotPassword(email: string) {
+    return api.post<AuthMessageResponse>("/auth/forgot-password", { email }, { skipRefresh: true });
+  },
+  verifyResetOtp(input: { email: string; otp: string }) {
+    return api.post<AuthMessageResponse>("/auth/verify-reset-otp", input, { skipRefresh: true });
+  },
+  resetPassword(input: { email: string; newPassword: string }) {
+    return api.post<AuthMessageResponse>("/auth/reset-password", input, { skipRefresh: true });
   },
   getConfig() {
     return api.get<AuthConfig>("/auth/config", { skipRefresh: true });
